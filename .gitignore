@@ -1,0 +1,10 @@
+build/
+install/
+log/
+__pycache__/
+*.pyc
+*.bak*
+*.swp
+.DS_Store
+.vscode/
+video.mp4

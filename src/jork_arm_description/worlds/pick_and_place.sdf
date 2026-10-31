@@ -1,0 +1,90 @@
+<?xml version="1.0" ?>
+<sdf version="1.8">
+  <world name="pick_and_place_world">
+    <physics name="1ms" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><plane><normal>0 0 1</normal><size>10 10</size></plane></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><plane><normal>0 0 1</normal><size>10 10</size></plane></geometry>
+          <material><ambient>0.8 0.8 0.8 1</ambient><diffuse>0.8 0.8 0.8 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Pickup Stand (Front of Arm) -->
+    <model name="pickup_pedestal">
+      <static>true</static>
+      <pose>0.421 0.045 0.0325 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.07 0.07 0.065</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.07 0.07 0.065</size></box></geometry>
+          <material><ambient>0.3 0.3 0.35 1</ambient><diffuse>0.3 0.3 0.35 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Drop-off Stand (90 deg Left) -->
+    <model name="dropoff_pedestal">
+      <static>true</static>
+      <pose>0.075 0.391 0.0325 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.09 0.09 0.065</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.09 0.09 0.065</size></box></geometry>
+          <material><ambient>0.1 0.65 0.25 1</ambient><diffuse>0.1 0.65 0.25 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Small Graspable Red Object -->
+    <model name="target_cube">
+      <pose>0.421 0.045 0.095 0 0 0</pose>
+      <link name="link">
+        <inertial>
+          <mass>0.020</mass>
+          <inertia>
+            <ixx>0.00001</ixx><ixy>0</ixy><ixz>0</ixz>
+            <iyy>0.00001</iyy><iyz>0</iyz><izz>0.00001</izz>
+          </inertia>
+        </inertial>
+        <collision name="collision">
+          <geometry><box><size>0.018 0.018 0.060</size></box></geometry>
+          <surface>
+            <friction>
+              <ode><mu>50.0</mu><mu2>50.0</mu2></ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.018 0.018 0.060</size></box></geometry>
+          <material><ambient>0.95 0.15 0.15 1</ambient><diffuse>0.95 0.15 0.15 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+  </world>
+</sdf>

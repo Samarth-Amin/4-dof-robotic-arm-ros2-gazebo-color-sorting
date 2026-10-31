@@ -1,0 +1,337 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="jork_arm">
+  <link name="world"/>
+  <joint name="world_to_base" type="fixed">
+    <parent link="world"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <link name="base_link">
+    <visual>
+      <origin xyz="-0.1793 -0.0980 -0.0006" rpy="0 0 0"/>
+      <geometry><mesh filename="package://jork_arm_description/meshes/base_link.stl" scale="1 1 1"/></geometry>
+      <material name="dark_gray"><color rgba="0.22 0.22 0.24 1.0"/></material>
+    </visual>
+    <visual>
+      <origin xyz="-0.0885 -0.0980 0.0119" rpy="0 0 0"/>
+      <geometry><mesh filename="package://jork_arm_description/meshes/link_turret.stl" scale="1 1 1"/></geometry>
+      <material name="slate_gray"><color rgba="0.34 0.34 0.36 1.0"/></material>
+    </visual>
+    <collision>
+      <origin xyz="0.0 0.0 0.038" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.09" length="0.075"/></geometry>
+    </collision>
+    <inertial>
+      <mass value="5.0"/>
+      <origin xyz="0.0 0.0 0.038" rpy="0 0 0"/>
+      <inertia ixx="0.04" ixy="0" ixz="0" iyy="0.04" iyz="0" izz="0.05"/>
+    </inertial>
+  </link>
+
+  <joint name="joint_1" type="revolute">
+    <parent link="base_link"/>
+    <child link="link_upright"/>
+    <origin xyz="0.0258 -0.0000 0.0800" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-3.14159" upper="3.14159" effort="90.0" velocity="3.0"/>
+    <dynamics damping="3.5" friction="0.4"/>
+  </joint>
+
+  <link name="link_upright">
+    <visual>
+      <origin xyz="-0.1165 -0.0605 -0.0200" rpy="0 0 0"/>
+      <geometry><mesh filename="package://jork_arm_description/meshes/link_upright.stl" scale="1 1 1"/></geometry>
+      <material name="titanium_gray"><color rgba="0.52 0.53 0.55 1.0"/></material>
+    </visual>
+    <inertial>
+      <mass value="1.8"/>
+      <origin xyz="0.0 0.0 0.06" rpy="0 0 0"/>
+      <inertia ixx="0.015" ixy="0" ixz="0" iyy="0.015" iyz="0" izz="0.012"/>
+    </inertial>
+  </link>
+
+  <joint name="joint_2" type="revolute">
+    <parent link="link_upright"/>
+    <child link="link_arm_beam"/>
+    <origin xyz="-0.0581 0.0 0.1781" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.2" upper="1.2" effort="90.0" velocity="3.0"/>
+    <dynamics damping="3.5" friction="0.4"/>
+  </joint>
+
+  <link name="link_arm_beam">
+    <visual>
+      <origin xyz="0.0154 -0.0461 -0.1859" rpy="0 0 0"/>
+      <geometry><mesh filename="package://jork_arm_description/meshes/link_arm_beam.stl" scale="1 1 1"/></geometry>
+      <material name="silver_metallic"><color rgba="0.60 0.61 0.63 1.0"/></material>
+    </visual>
+    <inertial>
+      <mass value="1.4"/>
+      <origin xyz="0.1125 0.0 0.0" rpy="0 0 0"/>
+      <inertia ixx="0.010" ixy="0" ixz="0" iyy="0.015" iyz="0" izz="0.015"/>
+    </inertial>
+  </link>
+
+  <joint name="joint_3" type="revolute">
+    <parent link="link_arm_beam"/>
+    <child link="link_wrist"/>
+    <origin xyz="0.2250 0.0 0.0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.57" upper="1.57" effort="50.0" velocity="3.0"/>
+    <dynamics damping="2.0" friction="0.25"/>
+  </joint>
+
+  <link name="link_wrist">
+    <inertial>
+      <mass value="0.40"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="0.004" ixy="0" ixz="0" iyy="0.004" iyz="0" izz="0.004"/>
+    </inertial>
+  </link>
+
+  <joint name="joint_4" type="revolute">
+    <parent link="link_wrist"/>
+    <child link="gripper_base"/>
+    <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-3.14159" upper="3.14159" effort="25.0" velocity="3.0"/>
+    <dynamics damping="1.5" friction="0.2"/>
+  </joint>
+
+  <link name="gripper_base">
+    <visual>
+      <origin xyz="-0.3364 -0.0456 -0.1575" rpy="0 0 0"/>
+      <geometry><mesh filename="package://jork_arm_description/meshes/gripper_base.stl" scale="1 1 1"/></geometry>
+      <material name="charcoal"><color rgba="0.18 0.18 0.20 1.0"/></material>
+    </visual>
+    <inertial>
+      <mass value="0.35"/>
+      <origin xyz="0.03 0.0 0.0" rpy="0 0 0"/>
+      <inertia ixx="0.003" ixy="0" ixz="0" iyy="0.003" iyz="0" izz="0.003"/>
+    </inertial>
+  </link>
+
+  <joint name="finger_left_joint" type="prismatic">
+    <parent link="gripper_base"/>
+    <child link="gripper_finger_left"/>
+    <origin xyz="0.0535 0.016 -0.0120" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-0.016" upper="0.018" effort="70.0" velocity="0.12"/>
+    <dynamics damping="4.0" friction="0.2"/>
+  </joint>
+
+  <link name="gripper_finger_left">
+    <visual>
+      <origin xyz="-0.3890 -0.0390 -0.1516" rpy="0 0 0"/>
+      <geometry><mesh filename="package://jork_arm_description/meshes/gripper_finger_left.stl" scale="1 1 1"/></geometry>
+      <material name="finger_gray"><color rgba="0.72 0.74 0.76 1.0"/></material>
+    </visual>
+    <collision>
+      <origin xyz="0.026 -0.002 0.0" rpy="0 0 0"/>
+      <geometry><box size="0.052 0.008 0.034"/></geometry>
+    </collision>
+    <collision>
+      <origin xyz="0.026 -0.005 -0.016" rpy="0 0 0"/>
+      <geometry><box size="0.048 0.006 0.003"/></geometry>
+    </collision>
+    <inertial>
+      <mass value="0.12"/>
+      <origin xyz="0.026 0.0 0.0" rpy="0 0 0"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+  </link>
+
+  <joint name="finger_right_joint" type="prismatic">
+    <parent link="gripper_base"/>
+    <child link="gripper_finger_right"/>
+    <origin xyz="0.0535 -0.016 -0.0120" rpy="0 0 0"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="-0.016" upper="0.018" effort="70.0" velocity="0.12"/>
+    <dynamics damping="4.0" friction="0.2"/>
+  </joint>
+
+  <link name="gripper_finger_right">
+    <visual>
+      <origin xyz="-0.3888 -0.0118 -0.1499" rpy="0 0 0"/>
+      <geometry><mesh filename="package://jork_arm_description/meshes/gripper_finger_right.stl" scale="1 1 1"/></geometry>
+      <material name="finger_gray"><color rgba="0.72 0.74 0.76 1.0"/></material>
+    </visual>
+    <collision>
+      <origin xyz="0.026 0.002 0.0" rpy="0 0 0"/>
+      <geometry><box size="0.052 0.008 0.034"/></geometry>
+    </collision>
+    <collision>
+      <origin xyz="0.026 0.005 -0.016" rpy="0 0 0"/>
+      <geometry><box size="0.048 0.006 0.003"/></geometry>
+    </collision>
+    <inertial>
+      <mass value="0.12"/>
+      <origin xyz="0.026 0.0 0.0" rpy="0 0 0"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+  </link>
+
+  <gazebo reference="gripper_finger_left"><mu1>250.0</mu1><mu2>250.0</mu2><kp>100000.0</kp><kd>100.0</kd></gazebo>
+  <gazebo reference="gripper_finger_right"><mu1>250.0</mu1><mu2>250.0</mu2><kp>100000.0</kp><kd>100.0</kd></gazebo>
+
+  <gazebo>
+    <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher">
+      <topic>joint_states</topic>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>joint_1</joint_name>
+      <p_gain>200</p_gain><i_gain>0</i_gain><d_gain>28</d_gain>
+      <topic>/jork_arm/joint_1/cmd_pos</topic>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>joint_2</joint_name>
+      <p_gain>240</p_gain><i_gain>0</i_gain><d_gain>32</d_gain>
+      <topic>/jork_arm/joint_2/cmd_pos</topic>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>joint_3</joint_name>
+      <p_gain>140</p_gain><i_gain>0</i_gain><d_gain>16</d_gain>
+      <topic>/jork_arm/joint_3/cmd_pos</topic>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>joint_4</joint_name>
+      <p_gain>45</p_gain><i_gain>0</i_gain><d_gain>6</d_gain>
+      <topic>/jork_arm/joint_4/cmd_pos</topic>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>finger_left_joint</joint_name>
+      <p_gain>240</p_gain><i_gain>0</i_gain><d_gain>12</d_gain>
+      <topic>/jork_arm/finger_left/cmd_pos</topic>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>finger_right_joint</joint_name>
+      <p_gain>240</p_gain><i_gain>0</i_gain><d_gain>12</d_gain>
+      <topic>/jork_arm/finger_right/cmd_pos</topic>
+    </plugin>
+  </gazebo>
+  <!-- BLOCK GRASP WELDS -->
+  <gazebo>
+    <plugin filename="gz-sim-detachable-joint-system" name="gz::sim::systems::DetachableJoint">
+      <parent_link>gripper_base</parent_link>
+      <child_model>part_01</child_model>
+      <child_link>link</child_link>
+      <attach_topic>/jork_arm/grasp/part_01/attach</attach_topic>
+      <detach_topic>/jork_arm/grasp/part_01/detach</detach_topic>
+      <suppress_child_warning>true</suppress_child_warning>
+    </plugin>
+    <plugin filename="gz-sim-detachable-joint-system" name="gz::sim::systems::DetachableJoint">
+      <parent_link>gripper_base</parent_link>
+      <child_model>part_02</child_model>
+      <child_link>link</child_link>
+      <attach_topic>/jork_arm/grasp/part_02/attach</attach_topic>
+      <detach_topic>/jork_arm/grasp/part_02/detach</detach_topic>
+      <suppress_child_warning>true</suppress_child_warning>
+    </plugin>
+    <plugin filename="gz-sim-detachable-joint-system" name="gz::sim::systems::DetachableJoint">
+      <parent_link>gripper_base</parent_link>
+      <child_model>part_03</child_model>
+      <child_link>link</child_link>
+      <attach_topic>/jork_arm/grasp/part_03/attach</attach_topic>
+      <detach_topic>/jork_arm/grasp/part_03/detach</detach_topic>
+      <suppress_child_warning>true</suppress_child_warning>
+    </plugin>
+    <plugin filename="gz-sim-detachable-joint-system" name="gz::sim::systems::DetachableJoint">
+      <parent_link>gripper_base</parent_link>
+      <child_model>part_04</child_model>
+      <child_link>link</child_link>
+      <attach_topic>/jork_arm/grasp/part_04/attach</attach_topic>
+      <detach_topic>/jork_arm/grasp/part_04/detach</detach_topic>
+      <suppress_child_warning>true</suppress_child_warning>
+    </plugin>
+    <plugin filename="gz-sim-detachable-joint-system" name="gz::sim::systems::DetachableJoint">
+      <parent_link>gripper_base</parent_link>
+      <child_model>part_05</child_model>
+      <child_link>link</child_link>
+      <attach_topic>/jork_arm/grasp/part_05/attach</attach_topic>
+      <detach_topic>/jork_arm/grasp/part_05/detach</detach_topic>
+      <suppress_child_warning>true</suppress_child_warning>
+    </plugin>
+    <plugin filename="gz-sim-detachable-joint-system" name="gz::sim::systems::DetachableJoint">
+      <parent_link>gripper_base</parent_link>
+      <child_model>part_06</child_model>
+      <child_link>link</child_link>
+      <attach_topic>/jork_arm/grasp/part_06/attach</attach_topic>
+      <detach_topic>/jork_arm/grasp/part_06/detach</detach_topic>
+      <suppress_child_warning>true</suppress_child_warning>
+    </plugin>
+    <plugin filename="gz-sim-detachable-joint-system" name="gz::sim::systems::DetachableJoint">
+      <parent_link>gripper_base</parent_link>
+      <child_model>part_07</child_model>
+      <child_link>link</child_link>
+      <attach_topic>/jork_arm/grasp/part_07/attach</attach_topic>
+      <detach_topic>/jork_arm/grasp/part_07/detach</detach_topic>
+      <suppress_child_warning>true</suppress_child_warning>
+    </plugin>
+    <plugin filename="gz-sim-detachable-joint-system" name="gz::sim::systems::DetachableJoint">
+      <parent_link>gripper_base</parent_link>
+      <child_model>part_08</child_model>
+      <child_link>link</child_link>
+      <attach_topic>/jork_arm/grasp/part_08/attach</attach_topic>
+      <detach_topic>/jork_arm/grasp/part_08/detach</detach_topic>
+      <suppress_child_warning>true</suppress_child_warning>
+    </plugin>
+    <plugin filename="gz-sim-detachable-joint-system" name="gz::sim::systems::DetachableJoint">
+      <parent_link>gripper_base</parent_link>
+      <child_model>part_09</child_model>
+      <child_link>link</child_link>
+      <attach_topic>/jork_arm/grasp/part_09/attach</attach_topic>
+      <detach_topic>/jork_arm/grasp/part_09/detach</detach_topic>
+      <suppress_child_warning>true</suppress_child_warning>
+    </plugin>
+    <plugin filename="gz-sim-detachable-joint-system" name="gz::sim::systems::DetachableJoint">
+      <parent_link>gripper_base</parent_link>
+      <child_model>part_10</child_model>
+      <child_link>link</child_link>
+      <attach_topic>/jork_arm/grasp/part_10/attach</attach_topic>
+      <detach_topic>/jork_arm/grasp/part_10/detach</detach_topic>
+      <suppress_child_warning>true</suppress_child_warning>
+    </plugin>
+    <plugin filename="gz-sim-detachable-joint-system" name="gz::sim::systems::DetachableJoint">
+      <parent_link>gripper_base</parent_link>
+      <child_model>part_11</child_model>
+      <child_link>link</child_link>
+      <attach_topic>/jork_arm/grasp/part_11/attach</attach_topic>
+      <detach_topic>/jork_arm/grasp/part_11/detach</detach_topic>
+      <suppress_child_warning>true</suppress_child_warning>
+    </plugin>
+    <plugin filename="gz-sim-detachable-joint-system" name="gz::sim::systems::DetachableJoint">
+      <parent_link>gripper_base</parent_link>
+      <child_model>part_12</child_model>
+      <child_link>link</child_link>
+      <attach_topic>/jork_arm/grasp/part_12/attach</attach_topic>
+      <detach_topic>/jork_arm/grasp/part_12/detach</detach_topic>
+      <suppress_child_warning>true</suppress_child_warning>
+    </plugin>
+    <plugin filename="gz-sim-detachable-joint-system" name="gz::sim::systems::DetachableJoint">
+      <parent_link>gripper_base</parent_link>
+      <child_model>part_13</child_model>
+      <child_link>link</child_link>
+      <attach_topic>/jork_arm/grasp/part_13/attach</attach_topic>
+      <detach_topic>/jork_arm/grasp/part_13/detach</detach_topic>
+      <suppress_child_warning>true</suppress_child_warning>
+    </plugin>
+    <plugin filename="gz-sim-detachable-joint-system" name="gz::sim::systems::DetachableJoint">
+      <parent_link>gripper_base</parent_link>
+      <child_model>part_14</child_model>
+      <child_link>link</child_link>
+      <attach_topic>/jork_arm/grasp/part_14/attach</attach_topic>
+      <detach_topic>/jork_arm/grasp/part_14/detach</detach_topic>
+      <suppress_child_warning>true</suppress_child_warning>
+    </plugin>
+    <plugin filename="gz-sim-detachable-joint-system" name="gz::sim::systems::DetachableJoint">
+      <parent_link>gripper_base</parent_link>
+      <child_model>part_15</child_model>
+      <child_link>link</child_link>
+      <attach_topic>/jork_arm/grasp/part_15/attach</attach_topic>
+      <detach_topic>/jork_arm/grasp/part_15/detach</detach_topic>
+      <suppress_child_warning>true</suppress_child_warning>
+    </plugin>
+  </gazebo>
+
+</robot>
