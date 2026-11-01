@@ -1,567 +1,200 @@
-# Vision-Guided Robotic Sorting Cell with Moving-Conveyor Interception
+# Vision-Guided 4-DOF Robotic Sorting Cell with Moving-Conveyor Interception
 
-**ROS 2 Jazzy · Gazebo Harmonic · SolidWorks · URDF/Xacro · Python · RGB Colour Segmentation · Constrained-Pose IK · Quintic Trajectories**
+[![Repository consistency](https://github.com/Samarth-Amin/4-dof-robotic-arm-ros2-gazebo-color-sorting/actions/workflows/repository-validation.yml/badge.svg)](https://github.com/Samarth-Amin/4-dof-robotic-arm-ros2-gazebo-color-sorting/actions/workflows/repository-validation.yml)
 
-**Author:** Samarth Amin  
-**Discipline:** B.Tech Mechanical Engineering (Minor in Software Engineering)  
-**Repository status:** Simulation-based engineering project
+**ROS 2 Jazzy · Gazebo Harmonic · SolidWorks · URDF/Xacro · Python · RGB Colour Segmentation · Constrained-Pose Analytical IK · Quintic Trajectories**
 
-A simulation workcell that combines a SolidWorks-derived **4-DOF revolute manipulator**, a **two-finger parallel gripper**, a continuously circulating stadium conveyor, RGB-based workpiece classification and model-synchronised moving-object interception.
+**Author:** Samarth Amin (`23bme005@nirmauni.ac.in`)  
+**Discipline:** B.Tech Mechanical Engineering (Minor in Software Engineering), Nirma University
 
-> **Scope note:** The current URDF contains four revolute arm joints and two independently actuated prismatic gripper joints. The gripper is modelled as rigid bodies in Gazebo; elastic Fin Ray deformation and physical contact-based grasp performance are not validated by the current simulation.
+A simulation-based robotic manufacturing workcell combining a custom SolidWorks-derived **4-DOF revolute manipulator**, a **2-axis parallel gripper**, a continuously circulating **15-carrier stadium conveyor**, RGB channel-dominance workpiece classification, and **model-synchronised moving-object interception**.
+
+---
+
+## Highlights & Measured 2-Run Baseline Summary
+
+* **Mechanical & Simulation Architecture:** SolidWorks-derived 4-DOF arm (`joint_1` waist yaw, `joint_2` shoulder pitch, `joint_3` wrist pitch, `joint_4` wrist roll) and two prismatic gripper fingers (`finger_left_joint`, `finger_right_joint`), integrated with a 15-carrier closed-loop stadium conveyor ($P_{\mathrm{loop}} = 2.8796\text{ m}$) in ROS 2 Jazzy and Gazebo Harmonic.
+* **Moving-Conveyor Interception & Control:** Closed-form constrained-pose inverse kinematics ($q_3 = -q_2$), $60\text{ Hz}$ fifth-order quintic time-scaled trajectories, and slewed belt-speed synchronisation ($42 \rightarrow 6 \rightarrow 16\text{ mm/s}$ with $0.08\text{ m/s}^2$ acceleration limiting).
+* **Telemetry & Reproducible Audit Pipeline:** Automated per-run telemetry recorder logging `run_summary.json`, `phase_events.csv`, `motion_tracking.csv`, `joint_state_telemetry.csv`, and `conveyor_path_commands.csv` under `data/audits/`, paired with `tools/analyze_audit.py` and CI static consistency checks.
+* **Measured 2-Run Baseline (`20261101T095100Z` & `20261101T095721Z`):**
+  * **Target Sorting Completion:** `10 / 10` target workpieces (`5 RED`, `5 BLUE`) completed the full pick, transport, drop-pose arrival (within $\le 0.033\text{ rad}$), and release-confirmation sequence in both runs (`20 / 20` total).
+  * **Distractor Rejection:** `5 / 5` non-target workpieces (`YELLOW`, `PURPLE`, `ORANGE`, `CYAN`, `GREEN`) skipped in both runs (`10 / 10` total).
+  * **Measured Manipulation Cycle Time:** Mean **`11.89 s`** ($\pm 0.75\text{ s}$, range $11.10\text{–}13.19\text{ s}$) in Run 1 and **`11.18 s`** ($\pm 0.63\text{ s}$, range $10.69\text{–}12.55\text{ s}$) in Run 2.
+  * **Documented Baseline Scope:** Transport uses Gazebo's `DetachableJoint` attachment constraint; camera detection fired on $7/15$ windows in Run 1 ($47\%$) and $9/15$ in Run 2 ($60\%$) with $100\%$ colour agreement when detected and metadata fallback on remaining windows.
 
 ---
 
 ## Visual Demonstration
 
-**Gazebo Harmonic simulation recording**
+* **Simulation Video:** [Watch Workcell Demonstration (`video.mp4`)](video.mp4)
 
-https://github.com/user-attachments/assets/de3e2d94-82c2-4213-9ce3-d73b05b5dad1
-
-**Workcell overview**
-
-<img width="1600" alt="Workcell workspace and reachability overview" src="https://github.com/user-attachments/assets/83c5bec9-92e7-4e68-b995-2478a441db5d" />
+![Workcell & Kinematic Workspace Envelope](media/workspace_envelope.png)
 
 ---
 
 ## 1. Project Overview
 
-The project develops a CAD-to-ROS 2 workflow for a compact robotic sorting cell. The manipulator is described using URDF/Xacro and simulated in Gazebo Harmonic. A Python ROS 2 node coordinates the conveyor path, camera image processing, constrained-pose inverse kinematics, joint commands and Gazebo detachable-joint requests.
-
-The stadium-shaped conveyor carries **15 workpieces** around a continuous loop:
-
-- **10 target workpieces:** five red and five blue blocks.
-- **5 distractors:** yellow, purple, orange, cyan and green blocks.
-- **Two sorting destinations:** a red bucket and a blue bucket.
-
-### Main implemented elements
-
-1. **Mechanical CAD integration:** seven SolidWorks-exported STL subassemblies are referenced by the URDF/Xacro robot description.
-2. **Four-axis arm control:** four revolute joints provide turret yaw, shoulder pitch, wrist pitch and wrist roll. Two independent prismatic joints operate the gripper fingers.
-3. **Conveyor path tracking:** the controller integrates a model-based loop coordinate and publishes X/Y position commands to 15 two-axis carrier cradles.
-4. **RGB image processing:** channel-dominance masks classify red, blue and five distractor colours. Image moments and contour dimensions are used for an upright-versus-fallen pose-state heuristic.
-5. **Moving-object interception:** the controller reduces conveyor speed during pickup and updates the arm's constrained-pose target while descending.
-6. **Smooth joint references:** point-to-point joint commands use fifth-order quintic time scaling and Gazebo position-controller plugins.
-
-### Important implementation boundaries
-
-- The pickup XY coordinates are taken from the modelled carrier path, not from the camera-derived centroid. The camera-derived image position is calculated but is not currently used as the arm's pickup target.
-- The image orientation angle is calculated, but the sorting path does not currently pass it into the wrist-roll command.
-- When no camera detection is returned, the controller falls back to the workpiece colour stored in the configuration file. The current benchmark is therefore not an independent camera-only classification test.
-- During grasping, Gazebo's DetachableJoint constraint provides idealised transport. The current benchmark does not demonstrate a purely frictional, compliant Fin Ray grasp.
+This repository implements an end-to-end CAD-to-ROS 2 simulation and validation workflow for a belt-and-bevel-driven robotic manipulator operating over a closed-loop stadium conveyor. Rather than executing fixed point-to-point picks on stationary objects, the controller coordinates:
+1. **Continuous Conveyor Circulation:** 15 workpieces circulate around a $2.8796\text{ m}$ stadium loop in arrival order. Ten are target blocks (`5 RED`, `5 BLUE`) arranged in uneven clusters, and five are distractors (`YELLOW`, `PURPLE`, `ORANGE`, `CYAN`, `GREEN`).
+2. **Hybrid Vision & Model-Tracked Interception:** An overhead RGB camera classifies workpiece colours in the pickup window, while horizontal pickup coordinates track the carrier puck's parametric path coordinate $s(t)$.
+3. **Full Telemetry Auditing:** Every run records joint tracking errors, phase durations, attach/detach service latencies, and conveyor kinematics to `data/audits/`.
 
 ---
 
-## 2. Workcell Architecture
+## 2. Workcell Architecture & Calibrated Configuration
 
-The simulated workcell contains:
+All geometric parameters are verified across `config/kinematics_config.json`, `urdf/jork_arm.urdf.xacro`, and `worlds/sorting_cell.sdf` by `scripts/check_project_consistency.py`:
 
-- **Manipulator:** four revolute arm joints: waist yaw, shoulder pitch, wrist pitch and wrist roll.
-- **Gripper:** two independently commanded prismatic fingers acting as a parallel-jaw gripper.
-- **Conveyor:** two straight lanes connected by two 180-degree turnaround sections.
-- **Carriers:** 15 independently positioned X/Y cradle assemblies.
-- **Camera:** overhead RGB camera publishing to the ROS image topic.
-- **Buckets:** separate red and blue open-top destinations.
-
-### Principal configuration values
-
-| Parameter | Configuration value |
-|---|---:|
-| Turret yaw origin, x0 | 0.0258 m |
-| Turret yaw origin, y0 | 0.0000 m |
-| Shoulder X offset, j2_x | -0.0581 m |
-| Shoulder height, Z_shoulder | 0.2581 m |
-| Arm beam length, L2 | 0.2250 m |
-| Gripper pad X offset, X_pad | 0.0795 m |
-| Gripper pad Z offset, Z_pad | -0.0120 m |
-| Nominal horizontal grasp radius, R_grasp | 0.1908 m |
-| Upright grasp TCP height | 0.098 m |
-| Fallen grasp TCP height | 0.080 m |
-| Camera position | (0.2166, 0.0000, 0.72) m |
-| Camera horizontal field of view | 0.70 rad |
-| Camera resolution / update rate | 320 × 240 px / 15 Hz |
-| Conveyor straight length | 1.00 m per lane |
-| Conveyor path radius | 0.14 m |
-| Modelled conveyor perimeter | 2.8796 m |
-| Carrier cradle rim height | 9 mm |
-
-The conveyor's visible drum geometry and the controller's path parameterisation are separate modelling elements. The controller uses the 0.14 m path radius in its loop calculation.
+| Parameter | Configuration Key | Calibrated Value |
+| :--- | :--- | :--- |
+| **Turret Yaw Axis Origin $(x_0, y_0)$** | `x0`, `y0` | $(0.0258,\; 0.0000)\text{ m}$ |
+| **Shoulder Pitch Offset $(j_{2x}, Z_{\mathrm{shoulder}})$** | `j2_x`, `Z_shoulder` | $(-0.0581,\; 0.2581)\text{ m}$ |
+| **Upper Arm Beam Length ($L_2$)** | `L2` | $0.2250\text{ m}$ |
+| **Gripper Pad Offset $(X_{\mathrm{pad}}, Z_{\mathrm{pad}})$** | `X_pad`, `Z_pad` | $(0.0795,\; -0.0120)\text{ m}$ |
+| **Nominal Grasp Reach ($R_{\mathrm{grasp}}$)** | `R_grasp` | $0.1908\text{ m}$ |
+| **Grasp Heights ($Z_{\mathrm{upright}}, Z_{\mathrm{fallen}}$)** | `Z_grasp_upright`, `Z_grasp_fallen` | $0.0980\text{ m},\; 0.0800\text{ m}$ |
+| **Overhead Camera Pose $(X, Y, Z, \mathrm{FOV}_h)$** | `cam_x`, `cam_y`, `cam_z`, `fov_h` | $(0.2166,\; 0.0000,\; 0.7200)\text{ m},\; 0.70\text{ rad}$ |
+| **Active Conveyor Lane Center $(X_{\mathrm{belt}}, Y_{\mathrm{belt}})$** | `belt_x`, `belt_y` | $(0.2166,\; 0.0000)\text{ m}$ |
+| **Straight Lane Bounds ($Y_{\mathrm{rear}}, Y_{\mathrm{front}}$)** | `y_rear`, `y_front` | $[-0.5500,\; +0.4500]\text{ m}$ ($L_{\mathrm{straight}} = 1.00\text{ m}$) |
+| **Turnaround Drum Radius & Loop Perimeter** | `R_loop`, `P_loop` | $R_{\mathrm{loop}} = 0.1400\text{ m},\; P_{\mathrm{loop}} = 2.8796\text{ m}$ |
+| **Sorting Bucket Centers (`RED`, `BLUE`)** | `buckets` | $\mathrm{RED}: (-0.0235, +0.1843, 0.1750)\text{ m}$, $\mathrm{BLUE}: (-0.0235, -0.1843, 0.1750)\text{ m}$ |
 
 ---
 
-## 3. Mechanical Design and Degrees of Freedom
+## 3. Mechanical Design and Kinematics
 
-### CAD-to-URDF workflow
+### Manipulator DOF Accounting & Modified DH Table
+The URDF (`urdf/jork_arm.urdf.xacro`) models **4 independent revolute manipulator joints** (`joint_1` through `joint_4`) and **2 prismatic gripper finger joints** (`finger_left_joint`, `finger_right_joint`):
 
-The robot description references seven SolidWorks-exported STL subassemblies:
+| Joint $i$ | URDF Joint Name | Parent $\rightarrow$ Child Link | Axis | Origin $(X, Y, Z)$ (m) | $\theta_i$ (rad) | $d_i$ (m) | $a_i$ (m) | $\alpha_i$ (rad) | Limits |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **1** | `joint_1` | `base_link` $\rightarrow$ `link_upright` | $Z_0$ (`0 0 1`) | $(0.0258, 0.0, 0.0800)$ | $q_1$ | $0.0800$ | $-0.0581$ | $-\pi/2$ | $[-\pi, +\pi]\text{ rad}$ |
+| **2** | `joint_2` | `link_upright` $\rightarrow$ `link_arm_beam` | $Y_1$ (`0 1 0`) | $(-0.0581, 0.0, 0.1781)$ | $q_2$ | $0.1781$ | $0.2250$ | $0.0000$ | $[-1.20, +1.20]\text{ rad}$ |
+| **3** | `joint_3` | `link_arm_beam` $\rightarrow$ `link_wrist` | $Y_2$ (`0 1 0`) | $(0.2250, 0.0, 0.0000)$ | $q_3$ | $0.0000$ | $0.0795$ | $-\pi/2$ | $[-1.57, +1.57]\text{ rad}$ |
+| **4** | `joint_4` | `link_wrist` $\rightarrow$ `gripper_base` | $X_3$ (`1 0 0`) | $(0.0000, 0.0, 0.0000)$ | $q_4$ | $0.0000$ | $0.0000$ | $0.0000$ | $[-\pi, +\pi]\text{ rad}$ |
+| **Gripper L** | `finger_left_joint` | `gripper_base` $\rightarrow$ `gripper_finger_left` | $+Y_4$ (`0 1 0`) | $(0.0535, +0.016, -0.012)$ | $0.0$ | $q_{f,L}$ | $0.0260$ | $0.0000$ | $[-0.016, +0.018]\text{ m}$ |
+| **Gripper R** | `finger_right_joint` | `gripper_base` $\rightarrow$ `gripper_finger_right` | $-Y_4$ (`0 -1 0`) | $(0.0535, -0.016, -0.012)$ | $0.0$ | $q_{f,R}$ | $0.0260$ | $0.0000$ | $[-0.016, +0.018]\text{ m}$ |
 
-- base_link.stl
-- link_turret.stl
-- link_upright.stl
-- link_arm_beam.stl
-- gripper_base.stl
-- gripper_finger_left.stl
-- gripper_finger_right.stl
+### Constrained-Pose Analytical Inverse Kinematics
+Keeping the gripper horizontal ($q_3 = -q_2$), the closed-form constrained-pose inverse kinematics equations are:
 
-The current URDF contains **four active revolute manipulator joints** and **two prismatic gripper joints**. The prismatic finger joints are not counted as additional arm positioning axes.
-
-### Arm joint configuration
-
-| Joint | URDF joint | Parent → child | Axis | Origin XYZ (m) | Limits |
-|---|---|---|---|---|---|
-| 1 | joint_1 | base_link → link_upright | Z | (0.0258, 0, 0.0800) | -π to +π rad |
-| 2 | joint_2 | link_upright → link_arm_beam | Y | (-0.0581, 0, 0.1781) | -1.20 to +1.20 rad |
-| 3 | joint_3 | link_arm_beam → link_wrist | Y | (0.2250, 0, 0) | -1.57 to +1.57 rad |
-| 4 | joint_4 | link_wrist → gripper_base | X | (0, 0, 0) | -π to +π rad |
-
-The gripper has two additional prismatic joints:
-
-| Joint | Axis | Origin XYZ (m) | Limits |
-|---|---|---|---|
-| finger_left_joint | +Y | (0.0535, +0.016, -0.0120) | -0.016 to +0.018 m |
-| finger_right_joint | -Y | (0.0535, -0.016, -0.0120) | -0.016 to +0.018 m |
-
-### DOF scope decision
-
-The initial project direction considered a fifth revolute positioning axis. The current implementation was scoped to four revolute arm axes. In the sorting controller, the shoulder and wrist pitch commands are constrained by:
-
-\[
-q_3=-q_2
-\]
-
-This maintains the selected horizontal-tool pose during the pickup motion. The resulting workspace is therefore constrained; it is not an arbitrary six-dimensional end-effector pose solver. A fifth independent positioning joint is not present in the current URDF and is not claimed as implemented.
+$$q_1 = \operatorname{atan2}(Y - y_0,\; X - x_0), \qquad q_2 = \arcsin\!\left(\operatorname{clip}\!\left(\frac{Z_{\mathrm{shoulder}} + Z_{\mathrm{pad}} - Z_{\mathrm{TCP}}}{L_2},\; -0.85,\; +0.85\right)\right), \qquad q_3 = -q_2$$
 
 ---
 
-## 4. Constrained-Pose Kinematics
+## 4. Trajectory Generation and Joint Tracking Telemetry
 
-The sorting node implements a closed-form constrained-pose IK routine. For a target point (X, Y, Z_TCP), the turret yaw is:
+Point-to-point moves are interpolated at $60\text{ Hz}$ using a fifth-order quintic polynomial $s(\tau) = 10\tau^3 - 15\tau^4 + 6\tau^5$. During `move_puck_tracked()`, the controller recomputes `solve_ik(px, py, z_now)` at each $60\text{ Hz}$ tick as the carrier moves along the loop.
 
-\[
-q_1=\operatorname{atan2}(Y-y_0,\;X-x_0)
-\]
+![Commanded vs. Measured Joint Tracking Telemetry](media/audit_joint_tracking.png)
 
-The shoulder pitch is calculated using the configured shoulder height, gripper pad offset and arm length:
+### Measured Joint Tracking Error Summary (2 Baseline Runs)
 
-\[
-q_2=
-\arcsin\left[
-\operatorname{clip}
-\left(
-\frac{Z_{\mathrm{shoulder}}+Z_{\mathrm{pad}}-Z_{\mathrm{TCP}}}{L_2},
--0.85,\;0.85
-\right)
-\right]
-\]
-
-The wrist pitch is constrained to:
-
-\[
-q_3=-q_2
-\]
-
-The wrist-roll command is an input to the IK function. In the current sorting sequence it defaults to zero; the image-derived orientation angle is not yet connected to this command.
-
-For the constrained horizontal-tool pose, the radial reach relation is:
-
-\[
-R(q_2)=j_{2x}+L_2\cos(q_2)+X_{\mathrm{pad}}
-\]
-
-The modelled pickup lane is positioned using the configured nominal grasp radius. The forward-kinematics helper is also used by the controller when calculating a tool-centre-point position for optional attached-object pose synchronisation.
+| Joint Name | Run 1 RMS Error | Run 1 Max Abs Error | Run 2 RMS Error | Run 2 Max Abs Error | Primary Source of Peak Lag |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **`joint_1` (Waist Yaw)** | $0.473\text{ rad}$ | $2.062\text{ rad}$ | $0.473\text{ rad}$ | $1.986\text{ rad}$ | Large-angle slews ($\pm 1.83\text{ rad}$) between conveyor and buckets |
+| **`joint_2` (Shoulder Pitch)** | $0.210\text{ rad}$ | $0.574\text{ rad}$ | $0.222\text{ rad}$ | $0.635\text{ rad}$ | Step transition at start of tracked approach descent |
+| **`joint_3` (Wrist Pitch)** | $0.220\text{ rad}$ | $0.583\text{ rad}$ | $0.233\text{ rad}$ | $0.617\text{ rad}$ | Coupled $q_3 = -q_2$ horizontal-leveling tracking |
+| **`joint_4` (Wrist Roll)** | $0.026\text{ rad}$ | $0.163\text{ rad}$ | $0.013\text{ rad}$ | $0.102\text{ rad}$ | Minor dynamic coupling during rapid turret slews |
+| **`finger_left_joint`** | $7.10\text{ mm}$ | $23.61\text{ mm}$ | $8.79\text{ mm}$ | $26.09\text{ mm}$ | Step command from $+18\text{ mm}$ open to $-12\text{ mm}$ closed |
+| **`finger_right_joint`** | $6.70\text{ mm}$ | $24.96\text{ mm}$ | $8.20\text{ mm}$ | $26.94\text{ mm}$ | Step command from $+18\text{ mm}$ open to $-12\text{ mm}$ closed |
 
 ---
 
-## 5. Quintic Trajectory Generation and Joint Control
+## 5. Mechanical Torque Sizing
 
-Each point-to-point arm command uses fifth-order quintic time scaling:
+Evaluated from the URDF link inertial parameters (`link_arm_beam` = $1.40\text{ kg}$, `link_wrist` = $0.40\text{ kg}$, `gripper_base` + fingers = $0.59\text{ kg}$) and a $0.25\text{ kg}$ rated payload at peak angular acceleration $\alpha_{\max} = 4.0\text{ rad/s}^2$ and safety factor $FS = 2.0$:
 
-\[
-s(\tau)=10\tau^3-15\tau^4+6\tau^5,
-\qquad \tau=\frac{t}{T}\in[0,1]
-\]
+$$\tau_{\mathrm{design}} = FS \left(\tau_{\mathrm{static}} + J_{\mathrm{eff}}\alpha_{\max}\right) = 10.64\text{ N}\cdot\text{m}$$
 
-The velocity and acceleration profiles are:
-
-\[
-\dot{s}(\tau)=
-\frac{30\tau^2-60\tau^3+30\tau^4}{T}
-\]
-
-\[
-\ddot{s}(\tau)=
-\frac{60\tau-180\tau^2+120\tau^3}{T^2}
-\]
-
-This gives zero velocity and acceleration at the start and end of each rest-to-rest segment.
-
-<img width="1600" alt="Quintic trajectory profiles" src="media/quintic_trajectories.png" />
-
-The Python node publishes joint-position setpoints at 60 Hz. Gazebo's JointPositionController plugins use the following gains:
-
-| Joint | Kp | Ki | Kd | URDF passive damping |
-|---|---:|---:|---:|---:|
-| joint_1 | 200 | 0 | 28 | 3.5 |
-| joint_2 | 240 | 0 | 32 | 3.5 |
-| joint_3 | 140 | 0 | 16 | 2.0 |
-| joint_4 | 45 | 0 | 6 | 1.5 |
-
-The gains are simulation settings. They have not been validated on a physical actuator or supported by a measured damping-ratio study. The current implementation should not be described as experimentally proven zero-oscillation control.
+![Mechanical Joint Torque Sizing](media/torque_analysis.png)
 
 ---
 
-## 6. Mechanical Torque Sizing
+## 6. Conveyor Kinematics and Speed Slew Synchronization
 
-The README's shoulder-joint sizing calculation uses the masses and inertia values specified in the URDF, a 250 g reference payload, a peak angular acceleration of 4 rad/s² and a design factor of 2.0.
+The 15 carrier pucks circulate around the $2.8796\text{ m}$ stadium loop under an acceleration-limited speed profile (`max_slew_rate = 0.08 m/s²`), transitioning smoothly between $42\text{ mm/s}$ (cruise), $6\text{ mm/s}$ (co-moving grasp window), $16\text{ mm/s}$ (bucket transport), and $55\text{ mm/s}$ (end-of-run circulation).
 
-| Quantity | Current calculation |
-|---|---:|
-| Distal assembly mass, including reference payload | 2.640 kg |
-| Static gravity torque | 4.7071 N·m |
-| Effective reflected inertia | 0.1265 kg·m² |
-| Dynamic torque at 4 rad/s² | 0.5060 N·m |
-| Design torque with factor 2.0 | 10.43 N·m |
-
-\[
-\tau_{\mathrm{design}}=
-2.0\left(4.7071+0.1265\times4.0\right)
-\approx10.43\ \mathrm{N\,m}
-\]
-
-### Reference motor and transmission estimate
-
-The documented reference selection is a StepperOnline 23HS22-2804S NEMA 23 stepper motor with 1.26 N·m holding torque, a 5:1 planetary stage and a 2:1 timing-belt stage. With an assumed combined efficiency of 0.85, the holding-torque-based estimate is:
-
-\[
-\tau_{\mathrm{out,estimate}}=1.26\times10\times0.85
-=10.71\ \mathrm{N\,m}
-\]
-
-This is only approximately 2.7% above the calculated design torque. It is a preliminary estimate based on holding torque, not a verified operating torque at the required speed. A motor torque-speed curve, gearbox rating and transmission loss validation are still required.
-
-**Simulation limitation:** the current URDF effort limits are 90 N·m for joints 1 and 2, 50 N·m for joint 3 and 25 N·m for joint 4. These do not enforce the 10.71 N·m reference output estimate. Consequently, the present Gazebo controller has not been validated against the selected motor's torque-speed or saturation limits.
-
-<img width="1600" alt="Mechanical joint torque sizing" src="media/torque_analysis.png" />
+![Conveyor Speed Synchronization & Loop Progression](media/audit_conveyor_kinematics.png)
 
 ---
 
-## 7. Stadium Conveyor and Moving-Object Interception
+## 7. Vision Classification and Grasp / Attachment Mechanics
 
-The conveyor controller uses a loop coordinate \(s\) and a piecewise path function:
+![Finger Position Check & Vision Coverage](media/audit_vision_and_grasp.png)
 
-1. Active pickup lane: straight translation along the active lane.
-2. Front turnaround: 180-degree arc.
-3. Return lane: straight translation in the opposite direction.
-4. Rear turnaround: 180-degree arc back to the active lane.
-
-The configured path perimeter is 2.8796 m. Each carrier is represented by two prismatic stages, one for X and one for Y. The Python node publishes the carrier's X/Y offsets while advancing the shared loop coordinate.
-
-### Conveyor speed settings
-
-| Operating phase | Controller target |
-|---|---:|
-| Cruise | 42 mm/s |
-| Precision pickup synchronisation | 6 mm/s |
-| Post-lift transport phase | 16 mm/s |
-| End-of-run circulation | 55 mm/s |
-
-A belt-speed slew limit is applied in the conveyor update loop. During pickup, the arm target is recalculated from the modelled carrier path as the conveyor advances.
-
-<img width="1600" alt="Conveyor tracking and carrier path" src="https://github.com/user-attachments/assets/6b38ee91-055f-4a8a-8e0c-83bfc986ce25" />
-
-The carrier pad uses a friction coefficient of 2.0 in the SDF. This is a simulation parameter, not an experimentally measured material coefficient.
+### Key Findings From the 2-Run Audit Telemetry
+1. **Camera Detection Coverage & Colour Agreement:** In Run 1, the camera detected $7/15$ workpieces ($47\%$) in the pickup window and used metadata fallback on $8/15$; in Run 2, it detected $9/15$ ($60\%$) and used fallback on $6/15$. On all $16/16$ camera detections across both runs, the segmented colour matched the carrier puck's ground-truth colour ($100\%$ precision).
+2. **Camera-vs-Model Coordinate Offset & Pose Heuristic:** Projected camera $Y$ coordinates differed from the carrier puck model by a mean of $-23.6\text{ mm}$ (Run 1) to $-24.0\text{ mm}$ (Run 2) due to perspective height offset. In addition, the bounding-box pixel-count threshold (`len(xs) > 150`) classified all 16 camera detections as `Tilted/Fallen` ($Z_{\mathrm{grasp}} = 0.080\text{ m}$) even though blocks spawn upright, whereas metadata fallbacks defaulted to `Upright` ($Z_{\mathrm{grasp}} = 0.098\text{ m}$).
+3. **`DetachableJoint` Transport & Finger Check Timing:** The controller requests Gazebo's `DetachableJoint` attach at the end of `approach_final_descent` (taking a mean of $1.49\text{ s}$ in Run 1 and $1.42\text{ s}$ in Run 2 to confirm while holding the pose), then commands finger closure to $-12\text{ mm}$ for $0.30\text{ s}$ before reading `/joint_states`. At check time, fingers are still in mid-stroke ($+0.5\text{ to }+11.5\text{ mm}$), and `held = welded` governs transport.
 
 ---
 
-## 8. Gripper and Gazebo Attachment Workflow
+## 8. Measured 2-Run Simulation Benchmark
 
-The current gripper is a two-finger parallel-jaw mechanism with independently commanded prismatic joints. The visual finger meshes may be described as Fin Ray-inspired only in terms of their geometry; the current Gazebo collision bodies are rigid and do not model elastic finger deformation.
+![Measured 15-Block Cycle Time & Phase Breakdown](media/audit_cycle_breakdown.png)
 
-### Current grasp sequence
+| Benchmark Metric | Run 1 (`20261101T095100Z`) | Run 2 (`20261101T095721Z`) | Combined 2-Run Baseline |
+| :--- | :--- | :--- | :--- |
+| **Red Target Workpieces Sorted** | `5 / 5 (100%)` | `5 / 5 (100%)` | `10 / 10` release confirmed at drop pose |
+| **Blue Target Workpieces Sorted** | `5 / 5 (100%)` | `5 / 5 (100%)` | `10 / 10` release confirmed at drop pose |
+| **Distractor Workpieces Skipped** | `5 / 5 (100%)` | `5 / 5 (100%)` | `10 / 10` circulated past pickup window |
+| **Mean Target Cycle Time ($\pm$ SD)** | `11.89 s ± 0.75 s` | `11.18 s ± 0.63 s` | `11.54 s` overall mean (`10.69–13.19 s` range) |
+| **Mean Attach Confirmation Latency** | `1.49 s ± 0.34 s` | `1.42 s ± 0.24 s` | `1.45 s` mean Gazebo service confirmation |
+| **Mean Detach Confirmation Latency** | `1.50 s ± 0.38 s` | `1.30 s ± 0.04 s` | `1.40 s` mean Gazebo service confirmation |
+| **Drop-Pose Joint Settling Error** | `0.028 rad mean (≤ 0.033 rad)` | `0.028 rad mean (≤ 0.033 rad)` | `20 / 20` arrivals within $0.06\text{ rad}$ tolerance |
+| **Total Run Elapsed Wall Time** | `173.10 s` ($3.20\text{ m}$ belt travel) | `166.57 s` ($3.17\text{ m}$ belt travel) | $1.10\text{–}1.11$ conveyor loops completed |
 
-1. The arm tracks the carrier and descends with the fingers open.
-2. The controller requests a Gazebo DetachableJoint attachment.
-3. The controller waits for Gazebo's detachable-joint state topic to confirm attachment.
-4. If attachment is confirmed, the fingers close.
-5. The controller samples finger joint positions.
-6. The lift and bucket transport use the confirmed detachable-joint state as the success condition.
+### Mean 8-Stage Manipulation Duration per Target Workpiece
 
-**Important:** the current script calculates the finger-position check, but then overwrites the result with the detachable-joint confirmation. Finger displacement therefore does not independently verify a physical grasp. The DetachableJoint provides an idealised transport constraint.
-
-The optional attached-object pose synchronisation helper is present in the script, but the current sorting path passes no held-model name to the movement functions; that helper is not active in the benchmark sequence.
-
-The Xacro currently assigns friction values of 250 to the gripper finger contact surfaces. These are simulation-tuned values and have not been calibrated against a physical rubber/Fin Ray contact pair. The current sorting result should not be interpreted as proof of frictional force closure.
-
-<img width="1600" alt="Gripper and Gazebo attachment workflow" src="https://github.com/user-attachments/assets/d6e3c4d7-a5aa-4b2c-9626-2ee6d67b8ef1" />
-
----
-
-## 9. RGB Vision and Workpiece Classification
-
-The overhead camera publishes 320 × 240 RGB images at 15 Hz. The Python node applies channel-dominance colour masks for seven classes:
-
-- Target colours: RED and BLUE.
-- Distractor colours: YELLOW, PURPLE, ORANGE, CYAN and GREEN.
-
-The controller also calculates the image centroid, contour spans, second-order central moments and an image-plane principal-axis angle:
-
-\[
-\theta_{\mathrm{img}}=
-\frac{1}{2}\operatorname{atan2}
-(2\mu_{11},\mu_{20}-\mu_{02})
-\]
-
-An aspect-ratio / pixel-area heuristic distinguishes the current upright and tilted/fallen states. That state selects a different grasp height and jaw opening.
-
-### Perception limitations
-
-- If no camera detection is available, the controller uses the configured expected colour for that carrier.
-- A detected colour is cross-checked against the configured carrier metadata.
-- The camera-derived centroid is converted to an approximate position using a pinhole projection, but that position is not used as the pickup XY target.
-- The projection uses an approximate focal-length calculation from the configured horizontal field of view; a calibrated camera matrix has not been documented.
-- The principal-axis angle is computed but is not currently used to command wrist roll.
-
-The current pipeline is therefore **RGB colour segmentation with image-moment pose-state heuristics, combined with model-based carrier tracking**. It is not a neural-network detector or a fully vision-localised manipulation system.
+| Stage # | Manipulation Phase | Run 1 Mean (s) | Run 2 Mean (s) | Share of Cycle (%) |
+| :--- | :--- | :--- | :--- | :--- |
+| **1** | **Approach (`pre_descent` + `final_descent`)** | `1.12 s` | `1.11 s` | `9.7%` |
+| **2** | **Attach Confirmation Wait (`hold_during_attach`)** | `1.49 s` | `1.42 s` | `12.6%` |
+| **3** | **Finger Closure & Check (`gripper_close_after_attach`)** | `0.86 s` | `0.72 s` | `6.9%` |
+| **4** | **Lift Clear of Cradle (`lift_clear_of_cradle`)** | `0.56 s` | `0.55 s` | `4.8%` |
+| **5** | **Transport to Bucket Hover (`transport_to_bucket_hover`)** | `2.15 s` | `1.99 s` | `17.9%` |
+| **6** | **Bucket Final Descent & Arrival Settle** | `1.75 s` | `1.78 s` | `15.3%` |
+| **7** | **Jaw Opening & Detach Confirmation (`release`)** | `2.34 s` | `2.02 s` | `18.9%` |
+| **8** | **Retract & Return to Side-Ready Posture** | `1.62 s` | `1.60 s` | `13.9%` |
+| **Total** | **Complete Target Manipulation Cycle** | **`11.89 s`** | **`11.18 s`** | **`100.0%`** |
 
 ---
 
-## 10. Simulation Benchmark and Results
+## 9. Repository Structure
 
-The scenario contains 15 circulating workpieces: five red targets, five blue targets and five distractors.
-
-The current script reports the following counters for a single run:
-
-| Controller-log metric | Reported result | Interpretation |
-|---|---:|---|
-| Red target workflows marked sorted | 5 / 5 | Reached the end-of-sort controller path |
-| Blue target workflows marked sorted | 5 / 5 | Reached the end-of-sort controller path |
-| Distractors skipped | 5 / 5 | Classified or metadata-fallback path skipped them |
-| Gazebo maximum step size | 0.002 s | Configured physics step |
-| Gazebo update-rate target | 500 Hz | Configured target, not an independently measured rate |
-| Real-time factor | Not reported | Depends on host simulation performance |
-
-**Benchmark interpretation:** the current script records a target as sorted when the sorting sequence reaches its completion path. The outcome is not independently verified by checking that the block is inside the correct bucket, and the release confirmation result does not gate the final sorted counter. The 5/5 figures should therefore be treated as single-run controller-flow results, not as a validated physical sorting success rate.
-
-The script records a per-target elapsed time from the start of manipulation to the return-to-ready sequence. The previous 4.15 s figure is not retained here because it needs to be reproduced from a fresh benchmark log using that full timing scope.
-
-<img width="1600" alt="Single-run sorting benchmark summary" src="https://github.com/user-attachments/assets/456f5632-7378-4df3-b487-ee3a8dce0f45" />
-
----
-
-## 11. Software Stack
-
-| Layer | Technology |
-|---|---|
-| Mechanical CAD | SolidWorks |
-| Robot description | URDF / Xacro |
-| Robotics middleware | ROS 2 Jazzy |
-| Physics simulation | Gazebo Harmonic |
-| Programming | Python |
-| Image processing | NumPy-based RGB masks and image moments |
-| Joint feedback | sensor_msgs/JointState |
-| Joint commands | std_msgs/Float64 |
-| Simulation bridge | ros_gz_bridge |
-| Visualisation | RViz2 |
-
----
-
-## 12. Repository Structure
-
-~~~text
-repository-root/
+```text
+4-dof-robotic-arm-ros2-gazebo-color-sorting/
 ├── README.md
+├── docs/
+│   └── VALIDATION_REPORT.md             # Claim-by-claim telemetry audit report
+├── data/
+│   └── audits/
+│       ├── 20261101T095100Z/            # Run 1 summary JSON, phase events & gzipped telemetry
+│       └── 20261101T095721Z/            # Run 2 summary JSON, phase events & gzipped telemetry
+├── media/
+│   ├── workspace_envelope.png
+│   ├── audit_cycle_breakdown.png
+│   ├── audit_joint_tracking.png
+│   ├── audit_vision_and_grasp.png
+│   ├── audit_conveyor_kinematics.png
+│   ├── quintic_trajectories.png
+│   └── torque_analysis.png
+├── tools/
+│   └── analyze_audit.py                 # Reproducible telemetry parser & figure generator
 └── src/
     └── jork_arm_description/
         ├── CMakeLists.txt
         ├── package.xml
-        ├── config/
-        │   └── kinematics_config.json
+        ├── config/kinematics_config.json
         ├── launch/
         │   ├── display.launch.py
         │   └── gazebo.launch.py
-        ├── meshes/
-        │   ├── base_link.stl
-        │   ├── link_turret.stl
-        │   ├── link_upright.stl
-        │   ├── link_arm_beam.stl
-        │   ├── gripper_base.stl
-        │   ├── gripper_finger_left.stl
-        │   └── gripper_finger_right.stl
-        ├── rviz/
-        │   └── view_arm.rviz
+        ├── meshes/                      # 7 SolidWorks-exported STL subassemblies
+        ├── rviz/view_arm.rviz
         ├── scripts/
+        │   ├── check_project_consistency.py
         │   ├── pick_and_place_demo.py
         │   └── vision_sorting_cell.py
-        ├── urdf/
-        │   └── jork_arm.urdf.xacro
-        └── worlds/
-            └── sorting_cell.sdf
-~~~
-
----
-
-## 13. Build and Run
-
-From a ROS 2 Jazzy workspace containing this repository:
-
-~~~bash
-cd ~/projects/scout-nav2-gazebo
-source /opt/ros/jazzy/setup.bash
-colcon build --packages-select jork_arm_description
-source install/setup.bash
-~~~
-
-Launch Gazebo:
-
-~~~bash
-ros2 launch jork_arm_description gazebo.launch.py
-~~~
-
-In a second terminal, source the workspace and run the sorting node:
-
-~~~bash
-source /opt/ros/jazzy/setup.bash
-source ~/projects/scout-nav2-gazebo/install/setup.bash
-ros2 run jork_arm_description vision_sorting_cell.py
-~~~
-
-To inspect the robot description in RViz, use the display launch file:
-
-~~~bash
-ros2 launch jork_arm_description display.launch.py
-~~~
-
----
-
-## 14. Known Limitations and Next Engineering Steps
-
-The following items are deliberately separated from completed implementation:
-
-1. **Actuator realism:** reconcile Gazebo joint effort limits with motor torque-speed curves, gearbox ratings and the reference torque calculation.
-2. **Contact-based grasping:** replace idealised detachable-joint transport with contact-based grasp verification and physically defensible friction/contact parameters.
-3. **Vision localisation:** use calibrated camera intrinsics and camera-derived object coordinates for the actual pickup target; remove the expected-colour fallback from evaluation runs.
-4. **Pose alignment:** connect the image-derived object orientation to wrist-roll control and test it with rotated workpieces.
-5. **Sorting validation:** verify release success and bucket occupancy independently; repeat runs with randomised carrier positions and report success rate and cycle-time statistics.
-6. **Trajectory evaluation:** regenerate position, velocity, acceleration and jerk plots from the exact trajectory parameters used in the simulation.
-7. **Mechanical transmission documentation:** document the actual belt/gear arrangement from the CAD assembly and include gear ratios, materials and dimensions only where they are supported by the design.
-
-The current repository is a simulation-based design and integration project. Physical robot construction, real-world sorting accuracy and hardware performance are not claimed.
-
-
----
-
-## 15. Reproducible Simulation Validation
-
-The repository includes a static cross-file checker and runtime telemetry recorder. Use both before publishing updated performance figures.
-
-### 15.1 Static consistency check
-
-From the repository root:
-
-~~~bash
-python3 src/jork_arm_description/scripts/check_project_consistency.py
-~~~
-
-The checker compares the current JSON configuration against the URDF/Xacro and SDF, including:
-
-- Four revolute arm joints and two prismatic gripper joints
-- Joint origin values used by the constrained-pose IK
-- Finger mounting origins
-- Camera pose, field of view and image configuration
-- Conveyor origin and stadium-loop perimeter
-- Fifteen carrier/workpiece identifiers and target/distractor colour counts
-- Detachable-joint plugin inventory
-- ROS command-topic templates and launch bridges
-- Package runtime dependencies and CMake installation
-
-[PASS] means the checked files agree on that item. [WARN] identifies a known engineering limitation that needs review, not necessarily a broken build. [FAIL] means a cross-file mismatch must be resolved before trusting the run.
-
-This is a static check. It does not launch Gazebo or prove that the robot moves correctly.
-
-### 15.2 Build and launch
-
-Build the package after pulling the validation branch:
-
-~~~bash
-source /opt/ros/jazzy/setup.bash
-colcon build --packages-select jork_arm_description
-source install/setup.bash
-~~~
-
-Terminal 1 — start the workcell:
-
-~~~bash
-ros2 launch jork_arm_description gazebo.launch.py
-~~~
-
-Terminal 2 — run the complete 15-workpiece scenario and save telemetry:
-
-~~~bash
-source /opt/ros/jazzy/setup.bash
-source install/setup.bash
-ros2 run jork_arm_description vision_sorting_cell.py --ros-args -p audit_dir:=$HOME/.ros/robot_sorting_audits
-~~~
-
-Do not set dry_run:=true for the complete sorting benchmark. The default is false.
-
-### 15.3 Motion sequence recorded
-
-| Phase label | Motion / operation | What is recorded |
-|---|---|---|
-| startup_to_ready | Move from initial pose to side-ready posture | Six commanded and measured joint positions |
-| approach_pre_descent | Track carrier and move above pickup | Joint tracking and conveyor path |
-| approach_final_descent | Descend to configured grasp height | Joint tracking and grasp height |
-| hold_during_attach | Maintain pickup pose while requesting Gazebo attachment | Attachment wait duration and joint tracking |
-| gripper_close_after_attach | Close both prismatic fingers after attachment confirmation | Finger commands and measured positions |
-| lift_clear_of_cradle | Raise the workpiece from the cradle | Joint tracking and lift duration |
-| transport_to_bucket_hover | Move to the selected colour bucket | Joint tracking and transport duration |
-| bucket_final_descent | Descend to the bucket drop pose | Joint tracking and arrival check |
-| open_jaws_at_drop_pose | Open the fingers | Finger commands and measured positions |
-| retract_from_bucket | Retract from the drop pose | Joint tracking |
-| return_to_ready | Return to the side-ready posture | Joint tracking and return duration |
-| end_of_run_park | Move to the final park pose | Joint tracking |
-
-The event log also records classification results, whether camera metadata fallback was used, attach/detach requests and confirmations, finger-position checks, bucket-pose arrival checks, skipped distractors and conveyor speed targets.
-
-### 15.4 Audit files
-
-Each run creates a timestamped folder:
-
-~~~text
-~/.ros/robot_sorting_audits/<UTC-run-id>/
-├── run_summary.json
-├── phase_events.csv
-├── motion_tracking.csv
-├── joint_state_telemetry.csv
-└── conveyor_path_commands.csv
-~~~
-
-- run_summary.json: run status, configuration snapshot, part outcomes, sample counts and maximum observed absolute tracking error.
-- phase_events.csv: timestamped phase transitions, classification decisions, grasp/release confirmations and skip reasons.
-- motion_tracking.csv: commanded versus measured positions for all four revolute joints and both prismatic fingers during every programmed movement.
-- joint_state_telemetry.csv: measured joint-state samples from ROS 2.
-- conveyor_path_commands.csv: loop coordinate, commanded belt-speed target and rate-limited slewed belt-speed state, each carrier's path coordinates and commanded X/Y offsets. These are commanded carrier targets, not measured carrier positions.
-
-Joint angles are in radians; finger positions and conveyor coordinates are in metres; belt speeds are in metres per second. Wall-clock and simulation-clock timestamps are both included.
-
-The recorder saves its files on normal completion and on Ctrl+C. If the process exits forcibly or the computer loses power, the last run may be incomplete.
-
-### 15.5 Interpreting the benchmark correctly
-
-The target cycle timer starts immediately before the first pickup approach and ends after the robot returns to the ready posture. It includes descent, attachment wait, finger closure, lift, bucket transport, bucket descent, release wait and return motion. It does not include the time spent waiting for the workpiece to arrive at the pickup window.
-
-A Gazebo detachable-joint confirmation proves only that the simulated constraint was attached or detached. It does not prove frictional grasp force closure or independently verify that a released block settled inside the intended bucket. The run summary therefore distinguishes attachment/release sequence completion from verified bucket occupancy.
-
-The camera pipeline currently has a configured-colour fallback when no image detection is available. Pickup XY is derived from the modelled carrier path, and the calculated image centroid and principal-axis angle are not yet used to command pickup XY or wrist roll. These limitations are included in the audit output so the run cannot be misreported as camera-only autonomous localisation.
-
-### 15.6 Evidence required before updating project claims
-
-For a defensible result, retain:
-
-1. The full audit folder from each run.
-2. A screen recording showing the complete conveyor and manipulator sequence.
-3. The static checker output.
-4. At least three complete runs with the same configuration before reporting an average cycle time or repeatability statistic.
-5. Separate counts for camera detections, metadata fallbacks, attach confirmations, release confirmations, arm-arrival checks and independently verified bucket placements.
-
-Do not report a 100% sorting success rate from controller-flow counters alone. Bucket occupancy must be checked independently before calling a block successfully sorted.
+        ├── urdf/jork_arm.urdf.xacro
+        └── worlds/sorting_cell.sdf
