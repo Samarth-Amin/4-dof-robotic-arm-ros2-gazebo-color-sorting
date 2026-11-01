@@ -35,7 +35,8 @@ https://github.com/user-attachments/assets/5375b9ef-bf01-4026-981f-5741450c76a7
 
 
 
-![Workcell & Kinematic Workspace Envelope](media/workspace_envelope.png)
+<img width="3900" height="1650" alt="image" src="https://github.com/user-attachments/assets/3d44a954-8a24-415f-aec4-c2c58519600b" />
+
 
 ---
 
