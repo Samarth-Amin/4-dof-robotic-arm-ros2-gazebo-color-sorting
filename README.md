@@ -26,7 +26,11 @@ A simulation-based robotic manufacturing workcell combining a custom SolidWorks-
 
 ## Visual Demonstration
 
-* **Simulation Video:** [Watch Workcell Demonstration (`video.mp4`)](video.mp4)
+* **Simulation Video:** 
+
+Uploading Video Project 5.mp4…
+
+
 
 ![Workcell & Kinematic Workspace Envelope](media/workspace_envelope.png)
 
