@@ -3,8 +3,8 @@
 <package format="3">
   <name>jork_arm_description</name>
   <version>0.1.0</version>
-  <description>URDF, Gazebo simulation and RViz visualization for the JORK Bot 6-DOF robotic arm with Fin Ray gripper.</description>
-  <maintainer email="samarth@todo.todo">Samarth</maintainer>
+  <description>URDF, Gazebo simulation and RViz visualization for the JORK Bot 4-DOF robotic arm with Fin Ray gripper.</description>
+  <maintainer email="23bme005@nirmauni.ac.in">Samarth</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
