@@ -220,14 +220,6 @@ The benchmark scenario evaluates a complete single-pass cycle of all $15$ workpi
 
 
 
-VISUAL DEMOSTRATION:
-
-
-
-https://github.com/user-attachments/assets/db477f60-2d3e-4367-af33-56fb758f65e0
-
-
-
 
 ---
 
@@ -380,7 +372,8 @@ A simulation-based robotic manufacturing workcell integrating a custom SolidWork
 * **Simulation Recording:** [Watch Workcell Demonstration (`video.mp4`)](video.mp4)
 * **Workcell Preview:**
 
-![Workcell & Kinematic Workspace Envelope](media/workspace_envelope.png)
+<img width="3900" height="1650" alt="workspace_envelope" src="https://github.com/user-attachments/assets/83c5bec9-92e7-4e68-b995-2478a441db5d" />
+
 
 ---
 
@@ -521,7 +514,8 @@ The stadium conveyor track consists of four piecewise segments parameterized by 
 
 During sorting, `vision_sorting_cell.py` monitors the arrival of any pending carrier puck entering the pickup window $s \\in [s_{\\mathrm{pickup}} - 0.018\\text{ m},\\; s_{\\mathrm{pickup}} + 0.025\\text{ m}]$ in arrival order. When a target puck enters the window, `move_puck_tracked()` reduces belt velocity from $42\\text{ mm/s}$ to $6\\text{ mm/s}$ and updates the inverse-kinematics target $(X_{\\mathrm{puck}}(t), Y_{\\mathrm{puck}}(t), Z(t))$ at $60\\text{ Hz}$ during descent and finger closure.
 
-![Conveyor Tracking & Co-Moving Interception](media/conveyor_tracking.png)
+<img width="3900" height="1560" alt="conveyor_tracking" src="https://github.com/user-attachments/assets/6b38ee91-055f-4a8a-8e0c-83bfc986ce25" />
+
 
 ---
 
@@ -536,7 +530,8 @@ In multibody physics engines, transporting small rigid bodies at high slewing ac
 
 Accordingly, the benchmark results represent **workflow validation using Gazebo's `DetachableJoint` attachment constraint**, rather than pure frictional Fin Ray deformation under load.
 
-![Fin Ray Force Closure & Encoder Verification](media/gripper_verification.png)
+<img width="3900" height="1560" alt="gripper_verification" src="https://github.com/user-attachments/assets/d6e3c4d7-a5aa-4b2c-9626-2ee6d67b8ef1" />
+
 
 ---
 
@@ -560,11 +555,19 @@ The perception pipeline in `scan_pickup_window_camera()` combines **camera-based
 
 ---
 
-## 9. Simulation Benchmark
+## 9. Simulation 
 
 The benchmark scenario evaluates a single complete pass of the 15-workpiece loop (5 Red targets, 5 Blue targets, 5 distractors) at a cruise conveyor speed of $42\\text{ mm/s}$ ($6\\text{ mm/s}$ during grasp synchronization).
 
-![15-Block Sorting Benchmark Summary](media/benchmark_summary.png)
+![15-Block Sorting Benchmark Summary]<img width="3900" height="1560" alt="benchmark_summary" src="https://github.com/user-attachments/assets/456f5632-7378-4df3-b487-ee3a8dce0f45" />
+
+
+
+
+
+https://github.com/user-attachments/assets/711da63c-7861-4514-9344-739f3f627aa7
+
+
 
 | Metric | Single-Run Simulation Result | Scope / Condition |
 | :--- | :--- | :--- |
