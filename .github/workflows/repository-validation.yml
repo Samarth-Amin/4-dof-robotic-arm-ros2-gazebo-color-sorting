@@ -1,0 +1,26 @@
+name: Repository consistency
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - docs/repository-credibility-cleanup
+
+jobs:
+  static-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile Python sources
+        run: |
+          python -m py_compile \
+            src/jork_arm_description/scripts/vision_sorting_cell.py \
+            src/jork_arm_description/scripts/check_project_consistency.py
+      - name: Check cross-file configuration consistency
+        run: python src/jork_arm_description/scripts/check_project_consistency.py
