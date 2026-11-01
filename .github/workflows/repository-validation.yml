@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - docs/repository-credibility-cleanup
+      - simulation-validation-package
 
 jobs:
   static-validation:
