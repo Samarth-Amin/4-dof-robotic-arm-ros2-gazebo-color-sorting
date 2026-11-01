@@ -218,6 +218,16 @@ The benchmark scenario evaluates a complete single-pass cycle of all $15$ workpi
 <img width="3900" height="1560" alt="benchmark_summary" src="https://github.com/user-attachments/assets/a33203c2-ec66-45b2-8da3-a4ab0ad435d9" />
 
 
+
+VISUAL DEMOSTRATION:
+
+
+
+https://github.com/user-attachments/assets/db477f60-2d3e-4367-af33-56fb758f65e0
+
+
+
+
 ---
 
 ## 10. Software Stack
