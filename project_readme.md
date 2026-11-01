@@ -82,17 +82,10 @@ The manipulator kinematic chain contains five serial arm joints from the station
 ### Analytical Inverse Kinematics
 For the constrained horizontal-tool pickup pose ($q_{2a} = 0$, $Z_{\mathrm{shoulder}} = 0.195\text{ m}$, $j_{2,x} = 0.018\text{ m}$, and horizontal finger alignment $q_3 = -q_2$), the closed-form joint relationships for a target TCP coordinate $(X, Y, Z_{\mathrm{TCP}})$ and tool roll angle $\psi_{\mathrm{roll}}$ are:
 
-$$q_1 = \operatorname{atan2}(Y - y_0,\; X - x_0)$$
+<img width="1158" height="532" alt="image" src="https://github.com/user-attachments/assets/a8d21a58-35f8-4a70-aa26-505b3e663db2" />
 
-$$q_2 = \arcsin\!\left(\operatorname{clip}\!\left(\frac{Z_{\mathrm{shoulder}} + Z_{\mathrm{pad}} - Z_{\mathrm{TCP}}}{L_2},\; -0.85,\; +0.85\right)\right), \qquad q_3 = -q_2, \qquad q_4 = \psi_{\mathrm{roll}}$$
 
-The corresponding forward kinematics radial reach $r(q_2, q_3)$ and vertical height $Z_{\mathrm{TCP}}(q_2, q_3)$ are:
-
-$$r(q_2, q_3) = j_{2,x} + L_2 \cos q_2 + X_{\mathrm{pad}} \cos(q_2 + q_3)$$
-
-$$Z_{\mathrm{TCP}}(q_2, q_3) = Z_{\mathrm{shoulder}} - L_2 \sin q_2 - X_{\mathrm{pad}} \sin(q_2 + q_3) + Z_{\mathrm{pad}}$$
-
-This is a constrained-pose analytical solution tailored for horizontal side-wall and low-profile pinching along the conveyor arc ($R_{\mathrm{grasp}} = 0.334\text{ m}$), where the argument of $\arcsin(\cdot)$ is explicitly clamped to $[-0.85, +0.85]\text{ rad}$ to enforce joint and reachability limits.
+TThis is a constrained-pose analytical solution tailored for horizontal side-wall and low-profile pinching along the conveyor arc ($R_{\mathrm{grasp}} = 0.334\text{ m}$), where the argument of $\arcsin(\cdot)$ is explicitly clamped to $[-0.85, +0.85]\text{ rad}$ to  $[-0.85, +0.85]\text{ rad}$ to enforce joint and reachability limits.
 
 ---
 
