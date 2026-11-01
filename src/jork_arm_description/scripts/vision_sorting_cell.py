@@ -3,13 +3,16 @@ import os
 import json
 import math
 import time
+import csv
 import subprocess
 import threading
+from datetime import datetime, timezone
+from pathlib import Path
 import numpy as np
 import rclpy
 from rclpy.node import Node
 from ament_index_python.packages import get_package_share_directory
-from std_msgs.msg import Float64
+from std_msgs.msg import Float64, String
 from sensor_msgs.msg import JointState, Image
 
 
@@ -29,10 +32,21 @@ class ClosedLoopStadiumConveyorCell(Node):
     def __init__(self):
         super().__init__('vision_sorting_cell')
         self.declare_parameter('dry_run', False)
+        self.declare_parameter('audit_dir', '~/.ros/robot_sorting_audits')
         pkg_share = get_package_share_directory('jork_arm_description')
         cfg_path = os.path.join(pkg_share, 'config', 'kinematics_config.json')
         with open(cfg_path, 'r') as f:
             self.cfg = json.load(f)
+
+        self.audit_run_id = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+        self.audit_dir = Path(os.path.expanduser(str(self.get_parameter('audit_dir').value))) / self.audit_run_id
+        self.audit_dir.mkdir(parents=True, exist_ok=True)
+        self.audit_wall_start = time.time()
+        self.audit_sim_start = None
+        self.audit_events, self.motion_samples, self.joint_samples = [], [], []
+        self.conveyor_samples = []
+        self.audit_part_results = []
+        self.audit_pub = self.create_publisher(String, '/sorting/audit_event', 50)
 
         self.pubs = {
             'j1': self.create_publisher(Float64, '/jork_arm/joint_1/cmd_pos', 10),
@@ -152,7 +166,7 @@ class ClosedLoopStadiumConveyorCell(Node):
 
     def wait_arrived(self, target, tol=0.05, settle=0.25, timeout=2.5):
         """Block until the MEASURED joint_1..3 are within tol rad of target and stay there for `settle` s."""
-        names = ['joint_1', 'joint_2', 'joint_3']
+        names = ['joint_1', 'joint_2', 'joint_3', 'joint_4']
         t0 = time.time()
         ok_since = None
         err = 9.9
@@ -187,9 +201,72 @@ class ClosedLoopStadiumConveyorCell(Node):
             self.get_logger().warn("Start-up release timed out, continuing anyway")
         self.get_logger().info("Start-up release sent for %d blocks in %.1f s" % (len(topics), time.time() - t0))
 
+    def _sim_time_s(self):
+        return self.get_clock().now().nanoseconds * 1e-9
+
+    def audit_event(self, phase, event, part=None, details=None):
+        sim_t = self._sim_time_s()
+        if self.audit_sim_start is None:
+            self.audit_sim_start = sim_t
+        row = {'wall_time_s': time.time()-self.audit_wall_start, 'sim_time_s': sim_t,
+               'phase': phase, 'event': event,
+               'part_id': (part.get('id') if isinstance(part, dict) else part),
+               'details': details or {}}
+        self.audit_events.append(row)
+        msg = String(); msg.data = json.dumps(row, sort_keys=True); self.audit_pub.publish(msg)
+
+    def audit_motion_sample(self, phase, command):
+        names = ['joint_1','joint_2','joint_3','joint_4','finger_left_joint','finger_right_joint']
+        row = {'wall_time_s': time.time()-self.audit_wall_start, 'sim_time_s': self._sim_time_s(), 'phase': phase}
+        for i, name in enumerate(names):
+            actual = self.joint_pos.get(name)
+            row['cmd_'+name] = float(command[i])
+            row['actual_'+name] = (float(actual) if actual is not None else None)
+            row['error_'+name] = (float(actual)-float(command[i]) if actual is not None else None)
+        self.motion_samples.append(row)
+
+    def save_audit(self, status='completed'):
+        names = ['joint_1','joint_2','joint_3','joint_4','finger_left_joint','finger_right_joint']
+        def write_csv(filename, rows, fields):
+            with (self.audit_dir / filename).open('w', newline='', encoding='utf-8') as f:
+                w = csv.DictWriter(f, fieldnames=fields); w.writeheader(); w.writerows(rows)
+        event_rows = []
+        for row in self.audit_events:
+            x = dict(row); x['details'] = json.dumps(x['details'], sort_keys=True); event_rows.append(x)
+        write_csv('phase_events.csv', event_rows, ['wall_time_s','sim_time_s','phase','event','part_id','details'])
+        motion_fields = ['wall_time_s','sim_time_s','phase'] + [k+'_'+n for n in names for k in ('cmd','actual','error')]
+        write_csv('motion_tracking.csv', self.motion_samples, motion_fields)
+        write_csv('joint_state_telemetry.csv', self.joint_samples, ['wall_time_s','sim_time_s']+names)
+        if self.conveyor_samples:
+            write_csv('conveyor_path_commands.csv', self.conveyor_samples, list(self.conveyor_samples[0].keys()))
+        max_err = {}
+        for name in names:
+            vals = [abs(r['error_'+name]) for r in self.motion_samples if r.get('error_'+name) is not None]
+            max_err[name] = max(vals) if vals else None
+        summary = {
+          'run_id': self.audit_run_id, 'status': status,
+          'wall_elapsed_s': time.time()-self.audit_wall_start,
+          'sim_elapsed_s': (self._sim_time_s()-self.audit_sim_start) if self.audit_sim_start is not None else None,
+          'part_results': self.audit_part_results, 'phase_event_count': len(self.audit_events),
+          'motion_sample_count': len(self.motion_samples), 'joint_state_sample_count': len(self.joint_samples),
+          'conveyor_path_sample_count': len(self.conveyor_samples),
+          'max_absolute_tracking_error': max_err,
+          'configuration': {k:self.cfg.get(k) for k in ['x0','y0','j2_x','Z_shoulder','L2','X_pad','Z_pad','R_grasp','Z_grasp_upright','Z_grasp_fallen','cam_x','cam_y','cam_z','fov_h','belt_x','belt_y','y_rear','y_front','R_loop','P_loop']},
+          'limits': ['DetachableJoint is an idealized grasp, not frictional force-closure validation.',
+                     'Release confirmation does not independently verify bucket occupancy.',
+                     'Camera metadata fallback and model-derived pickup coordinates remain in use.',
+                     'Tracking errors are command-versus-joint-state differences, not measured motor torque.']
+        }
+        with (self.audit_dir/'run_summary.json').open('w',encoding='utf-8') as f: json.dump(summary,f,indent=2,sort_keys=True)
+        self.get_logger().info('SIMULATION AUDIT SAVED: %s' % str(self.audit_dir))
+
     def joint_cb(self, msg):
         for name, pos in zip(msg.name, msg.position):
             self.joint_pos[name] = pos
+        names = ['joint_1','joint_2','joint_3','joint_4','finger_left_joint','finger_right_joint']
+        if all(n in self.joint_pos for n in names):
+            self.joint_samples.append({'wall_time_s':time.time()-self.audit_wall_start,
+                'sim_time_s':self._sim_time_s(), **{n:float(self.joint_pos[n]) for n in names}})
 
     def image_cb(self, msg):
         self.latest_image = msg
@@ -228,16 +305,24 @@ class ClosedLoopStadiumConveyorCell(Node):
             self._last_pub = now
             loop_s = self.loop_s
 
+        conveyor_row = {'wall_time_s':time.time()-self.audit_wall_start, 'sim_time_s':now,
+                        'loop_s_m':float(loop_s), 'belt_speed_actual_m_s':float(self._belt_v),
+                        'belt_speed_target_m_s':float(self._belt_v_target)}
         for p in self.parts:
             pid = p['puck_id']
             xr, yr = self.loop_xy(float(p['s0']) + loop_s)
+            conveyor_row[f'puck_{pid:02d}_path_x_m'] = float(xr)
+            conveyor_row[f'puck_{pid:02d}_path_y_m'] = float(yr)
             mx = Float64()
             my = Float64()
             mx.data = float(xr - float(p['xr0']))
             my.data = float(yr - float(p['yr0']))
+            conveyor_row[f'puck_{pid:02d}_cmd_offset_x_m'] = float(mx.data)
+            conveyor_row[f'puck_{pid:02d}_cmd_offset_y_m'] = float(my.data)
             pub_x, pub_y = self.puck_pubs[pid]
             pub_x.publish(mx)
             pub_y.publish(my)
+        self.conveyor_samples.append(conveyor_row)
         return loop_s
 
     def sleep_with_belt(self, duration, rate_hz=60):
@@ -276,7 +361,9 @@ class ClosedLoopStadiumConveyorCell(Node):
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
         )
 
-    def move_quintic(self, target_arm, duration=0.70, rate_hz=60, held_model=None):
+    def move_quintic(self, target_arm, duration=0.70, rate_hz=60, held_model=None, phase='joint_move'):
+        self.audit_event(phase, 'started', details={'duration_s':duration, 'target':list(target_arm)})
+        move_t0 = time.time()
         steps = max(8, int(duration * rate_hz))
         start_arm = list(self.current)
         dt = duration / float(steps)
@@ -289,6 +376,7 @@ class ClosedLoopStadiumConveyorCell(Node):
                 msg = Float64()
                 msg.data = float(val)
                 self.pubs[key].publish(msg)
+            self.audit_motion_sample(phase, cmd)
             self.step_loop_conveyor()
             if held_model is not None and (i % 12 == 0 or i == steps):
                 tx, ty, tz = self.forward_kinematics(cmd[0], cmd[1], cmd[2])
@@ -296,8 +384,11 @@ class ClosedLoopStadiumConveyorCell(Node):
             rclpy.spin_once(self, timeout_sec=0.0)
             time.sleep(dt)
         self.current = list(target_arm)
+        self.audit_event(phase, 'completed', details={'elapsed_wall_s':time.time()-move_t0})
 
-    def move_puck_tracked(self, part, z_start, z_end, f_start, f_end, roll=0.0, duration=0.50, rate_hz=60, held_model=None):
+    def move_puck_tracked(self, part, z_start, z_end, f_start, f_end, roll=0.0, duration=0.50, rate_hz=60, held_model=None, phase='tracked_intercept'):
+        self.audit_event(phase, 'started', part, {'z_start_m':z_start,'z_end_m':z_end,'finger_start_m':f_start,'finger_end_m':f_end,'duration_s':duration})
+        move_t0 = time.time()
         steps = max(8, int(duration * rate_hz))
         dt = duration / float(steps)
         keys = ['j1', 'j2', 'j3', 'j4', 'fl', 'fr']
@@ -318,11 +409,13 @@ class ClosedLoopStadiumConveyorCell(Node):
                 msg = Float64()
                 msg.data = float(val)
                 self.pubs[key].publish(msg)
+            self.audit_motion_sample(phase, cmd)
             if held_model is not None and (i == steps // 2 or i == steps):
                 tx, ty, tz = self.forward_kinematics(cmd[0], cmd[1], cmd[2])
                 self.sync_held_part_pose(held_model, tx, ty, tz, yaw=cmd[0])
             time.sleep(dt)
         self.current = list(cmd)
+        self.audit_event(phase, 'completed', part, {'elapsed_wall_s':time.time()-move_t0})
 
     def scan_pickup_window_camera(self):
         """
@@ -427,6 +520,7 @@ class ClosedLoopStadiumConveyorCell(Node):
         return held, (fl, fr)
 
     def run_sorting_cell(self):
+        self.audit_event('run', 'started', details={'part_count':len(self.parts), 'dry_run':bool(self.get_parameter('dry_run').value)})
         self.get_logger().info("==================================================================================")
         self.get_logger().info(" CLOSED-LOOP STADIUM CONVEYOR SORTING LINE (15 CRADLED BLOCKS: RED/BLUE/RANDOM)   ")
         self.get_logger().info("==================================================================================")
@@ -436,27 +530,29 @@ class ClosedLoopStadiumConveyorCell(Node):
         self.detach_all_blocks()
         self.last_belt_tick = None
         self.belt_speed = 0.0
+        self.audit_event('conveyor','speed_target_changed',details={'target_m_s':0.0})
         self.sleep_with_belt(0.5)
 
         if self.get_parameter('dry_run').value:
             self.get_logger().info("DRY RUN: belt only. Watch the blocks round both turns (Ctrl+C to stop).")
-            self.move_quintic([-0.55, -0.30, 0.30, 0.0, 0.016, 0.016], duration=1.0)
+            self.move_quintic([-0.55, -0.30, 0.30, 0.0, 0.016, 0.016], duration=1.0, phase='dry_run_park')
             self.belt_speed = 0.042
             while rclpy.ok():
                 self.sleep_with_belt(1.0)
 
         # Park robot in Side Ready Posture (-0.55 rad) so overhead camera has an unobstructed view
         wp_ready = [-0.55, -0.30, 0.30, 0.0, 0.016, 0.016]
-        self.move_quintic(wp_ready, duration=1.0)
+        self.move_quintic(wp_ready, duration=1.0, phase='startup_to_ready')
 
         run_start_time = time.time()
         self.last_belt_tick = None
-        benchmarks = []
+        benchmarks = self.audit_part_results  # preserve partial results if the run is interrupted
         s_pickup = -self.y_rear  # 0.55 m along Active Lane corresponds to y_rel = 0.0 (belt_y)
 
         pending = list(self.parts)  # each puck gets one look; missed targets stay pending and come round again
         while pending:
             self.belt_speed = 0.042
+            self.audit_event('conveyor','speed_target_changed',details={'target_m_s':0.042})
             part = None
             while part is None:
                 self.step_loop_conveyor()
@@ -471,16 +567,19 @@ class ClosedLoopStadiumConveyorCell(Node):
             pending.remove(part)
             pid = part['id']
             expected_color = part['color']
+            self.audit_event('part','selected',part,{'expected_color':expected_color,'loop_s':self.loop_s})
             s0 = float(part['s0'])
 
             # Inspect the pickup window with the overhead camera
             cam_det = self.scan_pickup_window_camera()
             detected_color = cam_det['color'] if (cam_det is not None) else expected_color
+            self.audit_event('vision','classification',part,{'detected_color':detected_color,'expected_color':expected_color,'camera_detection_available':cam_det is not None,'metadata_fallback_used':cam_det is None,'camera_xy_m':(list(cam_det['pos']) if cam_det is not None else None),'image_angle_rad':(cam_det['angle_rad'] if cam_det is not None else None),'pose_state':(cam_det['state'] if cam_det is not None else 'Upright')})
             if cam_det is not None and detected_color != expected_color:
                 self.get_logger().warn("[BLOCK #%02d] Camera sees %s but this puck carries %s (stray block in the pickup strip?) -> SKIPPING" % (
                     pid, detected_color, expected_color))
                 benchmarks.append({'id': pid, 'color': expected_color, 'state': 'n/a', 'action': 'SKIP (Mismatch)',
                                    'outcome': 'MISMATCH SKIP', 'time_s': 0.0})
+                self.audit_event('part','skipped_color_mismatch',part,{'detected_color':detected_color,'expected_color':expected_color})
                 continue
             pose_state = cam_det['state'] if (cam_det is not None) else 'Upright'
             z_grasp = cam_det['z_grasp'] if (cam_det is not None) else self.Z_grasp_upright
@@ -501,10 +600,12 @@ class ClosedLoopStadiumConveyorCell(Node):
                     'id': pid, 'color': detected_color, 'state': pose_state,
                     'action': 'SKIP (Random)', 'outcome': 'CIRCULATED LOOP', 'time_s': 0.0
                 })
+                self.audit_event('part','non_target_skipped',part,{'color':detected_color,'camera_detection_available':cam_det is not None})
                 continue
 
             # CASE 2: Target RED or BLUE Block -> Adaptive Multi-Pose Co-Moving Intercept!
             t_cycle = time.time()
+            self.audit_event('part','target_interception_started',part,{'color':detected_color,'pose_state':pose_state,'z_grasp_m':z_grasp,'model_pickup_xy_m':[px,py],'camera_xy_m':(list(cam_det['pos']) if cam_det is not None else None)})
             self.get_logger().info(
                 "\n[BLOCK #%02d / 15] Camera Detected TARGET: %-4s [%s, Z_grasp=%.3fm] at (%.3f, %.3f)m -> INTERCEPTING!" % (
                     pid, detected_color, pose_state, z_grasp, px, py
@@ -513,25 +614,30 @@ class ClosedLoopStadiumConveyorCell(Node):
 
             # Micro-synchronize loop speed to 6 mm/s while tracking puck during descent & jaw pinch
             self.belt_speed = 0.006
-            self.move_puck_tracked(part, z_start=0.185, z_end=0.175, f_start=jaw_open, f_end=jaw_open, duration=0.45)
-            self.move_puck_tracked(part, z_start=0.175, z_end=z_grasp, f_start=jaw_open, f_end=jaw_open, duration=0.55)
+            self.audit_event('conveyor','speed_target_changed',part,{'target_m_s':0.006})
+            self.move_puck_tracked(part, z_start=0.185, z_end=0.175, f_start=jaw_open, f_end=jaw_open, duration=0.45, phase='approach_pre_descent')
+            self.move_puck_tracked(part, z_start=0.175, z_end=z_grasp, f_start=jaw_open, f_end=jaw_open, duration=0.55, phase='approach_final_descent')
             # Weld the block to the gripper with the jaws open; only close the jaws once Gazebo CONFIRMS the weld
+            self.audit_event('grasp','attach_requested',part,{'model':part['name']})
             welded = self.set_weld(part['name'], True, lambda: self.move_puck_tracked(
-                part, z_start=z_grasp, z_end=z_grasp, f_start=jaw_open, f_end=jaw_open, duration=0.10))
+                part, z_start=z_grasp, z_end=z_grasp, f_start=jaw_open, f_end=jaw_open, duration=0.10, phase='hold_during_attach'))
+            self.audit_event('grasp','attach_result',part,{'confirmed_by_gazebo':bool(welded)})
             self.get_logger().info("  -> weld %s" % ("CONFIRMED by Gazebo" if welded else "NOT confirmed"))
             if welded:
-                self.move_puck_tracked(part, z_start=z_grasp, z_end=z_grasp, f_start=jaw_open, f_end=-0.012, duration=0.50)
+                self.move_puck_tracked(part, z_start=z_grasp, z_end=z_grasp, f_start=jaw_open, f_end=-0.012, duration=0.50, phase='gripper_close_after_attach')
             self.sleep_with_belt(0.15)
 
             held, f_state = self.is_object_held()
+            self.audit_event('grasp','finger_position_check',part,{'finger_left_m':f_state[0],'finger_right_m':f_state[1],'check_passed':bool(held),'overridden_by_detachable_joint':True})
             # Lift block cleanly out of the 9mm puck cradle (with TCP pose sync if grasped so it never snags on cradle rim)
             # Welded children don't collide with the arm, so finger closure can't prove a grasp any more
             held = welded
             held_model = None
             self.move_puck_tracked(
-                part, z_start=z_grasp, z_end=0.205, f_start=(-0.012 if held else jaw_open), f_end=(-0.012 if held else jaw_open), duration=0.50, held_model=held_model
+                part, z_start=z_grasp, z_end=0.205, f_start=(-0.012 if held else jaw_open), f_end=(-0.012 if held else jaw_open), duration=0.50, held_model=held_model, phase='lift_clear_of_cradle'
             )
             self.belt_speed = 0.016
+            self.audit_event('conveyor','speed_target_changed',part,{'target_m_s':0.016})
 
             if not held:
                 self.get_logger().warn(
@@ -540,12 +646,13 @@ class ClosedLoopStadiumConveyorCell(Node):
                     )
                 )
                 self.sleep_with_belt(0.3)
-                self.move_quintic(wp_ready, duration=0.65)
+                self.move_quintic(wp_ready, duration=0.65, phase='return_to_ready')
                 benchmarks.append({
                     'id': pid, 'color': detected_color, 'state': pose_state,
                     'action': 'SORT -> ' + detected_color,
-                    'outcome': 'DROPPED (Left)', 'time_s': time.time() - t_cycle
+                    'outcome': 'ATTACH_FAILED', 'time_s': time.time() - t_cycle
                 })
+                self.audit_event('part','attach_failed',part,{'finger_left_m':f_state[0],'finger_right_m':f_state[1]})
                 continue
 
             # Slew to Open RED or BLUE Bucket & Release Inside
@@ -558,33 +665,39 @@ class ClosedLoopStadiumConveyorCell(Node):
                     f_state[0] * 1000.0, f_state[1] * 1000.0, detected_color
                 )
             )
-            self.move_quintic(wp_bucket_hover + [-0.012, -0.012], duration=1.80, held_model=held_model)
-            self.move_quintic(wp_bucket_drop  + [-0.012, -0.012], duration=0.80, held_model=held_model)
+            self.move_quintic(wp_bucket_hover + [-0.012, -0.012], duration=1.80, held_model=held_model, phase='transport_to_bucket_hover')
+            self.move_quintic(wp_bucket_drop  + [-0.012, -0.012], duration=0.80, held_model=held_model, phase='bucket_final_descent')
             arrived, a_err = self.wait_arrived(wp_bucket_drop)
+            self.audit_event('bucket','drop_pose_arrival_check',part,{'arrived':bool(arrived),'max_joint_error_rad':float(a_err),'bucket':detected_color})
             self.get_logger().info("  -> Over %s bucket: arm %s (max joint error %.3f rad). Pausing 0.3 s..." % (
                 detected_color, "ARRIVED" if arrived else "NOT settled (timeout)", a_err))
             self.sleep_with_belt(0.3)
 
             # Position block inside bucket opening and open jaws so it drops naturally onto the bucket floor
             self.get_logger().info("  -> Dropping %s Block Inside %s BUCKET!" % (detected_color, detected_color))
-            self.move_quintic(wp_bucket_drop  + [0.016, 0.016], duration=0.35)
+            self.move_quintic(wp_bucket_drop  + [0.016, 0.016], duration=0.35, phase='open_jaws_at_drop_pose')
+            self.audit_event('release','detach_requested',part,{'model':part['name']})
             released = self.set_weld(part['name'], False, lambda: self.sleep_with_belt(0.05))
+            self.audit_event('release','detach_result',part,{'confirmed_by_gazebo':bool(released),'arm_arrived':bool(arrived),'bucket_occupancy_verified':False})
             self.get_logger().info("  -> release %s" % ("CONFIRMED by Gazebo" if released else "NOT confirmed"))
             self.sleep_with_belt(0.4)
-            self.move_quintic(wp_bucket_hover + [0.016, 0.016], duration=0.40)
+            self.move_quintic(wp_bucket_hover + [0.016, 0.016], duration=0.40, phase='retract_from_bucket')
 
             # Return to Side Ready Posture so camera is clear for the next incoming block
             self.move_quintic(wp_ready, duration=0.65)
 
+            outcome = 'RELEASE_CONFIRMED_AND_ARM_SETTLED' if (released and arrived) else ('RELEASE_CONFIRMED_ARM_NOT_SETTLED' if released else 'RELEASE_NOT_CONFIRMED')
             benchmarks.append({
                 'id': pid, 'color': detected_color, 'state': pose_state,
                 'action': 'SORT -> ' + detected_color,
-                'outcome': 'SORTED IN BUCKET', 'time_s': time.time() - t_cycle
+                'outcome': outcome, 'time_s': time.time() - t_cycle
             })
+            self.audit_event('part','sequence_finished',part,{'outcome':outcome,'release_confirmed':bool(released),'arm_arrived':bool(arrived),'bucket_occupancy_verified':False})
 
         # Keep circulating the skipped random blocks around the radial turns for 3 seconds at the end
         self.belt_speed = 0.055
-        self.move_quintic([0.0, 0.0, 0.0, 0.0, 0.015, 0.015], duration=1.2)
+        self.audit_event('conveyor','speed_target_changed',details={'target_m_s':0.055})
+        self.move_quintic([0.0, 0.0, 0.0, 0.0, 0.015, 0.015], duration=1.2, phase='end_of_run_park')
         self.sleep_with_belt(2.5)
         total_time = time.time() - run_start_time
 
@@ -597,7 +710,7 @@ class ClosedLoopStadiumConveyorCell(Node):
         sorted_blue = 0
         skipped_random = 0
         for b in benchmarks:
-            if b['outcome'] == 'SORTED IN BUCKET':
+            if b['outcome'] == 'RELEASE_CONFIRMED_AND_ARM_SETTLED':
                 if b['color'] == 'RED':
                     sorted_red += 1
                 elif b['color'] == 'BLUE':
@@ -611,9 +724,11 @@ class ClosedLoopStadiumConveyorCell(Node):
                 )
             )
         self.get_logger().info("------------------------------------------------------------------------------------------")
-        self.get_logger().info("RED Blocks Sorted      : %d / 5" % sorted_red)
-        self.get_logger().info("BLUE Blocks Sorted     : %d / 5" % sorted_blue)
-        self.get_logger().info("Random Colors Skipped  : %d / 5 (Circulating Smoothly Around Radial Turns)" % skipped_random)
+        self.audit_part_results = benchmarks
+        self.audit_event('run','completed',details={'release_confirmed_and_arm_settled_red':sorted_red,'release_confirmed_and_arm_settled_blue':sorted_blue,'non_targets_skipped':skipped_random,'bucket_occupancy_verified':False})
+        self.get_logger().info("RED release sequences completed : %d / 5 (bucket occupancy not independently checked)" % sorted_red)
+        self.get_logger().info("BLUE release sequences completed: %d / 5 (bucket occupancy not independently checked)" % sorted_blue)
+        self.get_logger().info("Non-target workpieces skipped    : %d / 5" % skipped_random)
         self.get_logger().info("Total Run Time         : %.2f s" % total_time)
         self.get_logger().info("==========================================================================================")
 
@@ -621,13 +736,24 @@ class ClosedLoopStadiumConveyorCell(Node):
 def main():
     rclpy.init()
     node = ClosedLoopStadiumConveyorCell()
-    time.sleep(1.0)
-    node.start_belt_thread()
-    node.run_sorting_cell()
-    node._belt_run = False
-    time.sleep(0.05)
-    node.destroy_node()
-    rclpy.shutdown()
+    status = 'completed'
+    try:
+        time.sleep(1.0)
+        node.start_belt_thread()
+        node.run_sorting_cell()
+    except KeyboardInterrupt:
+        status = 'interrupted'
+        node.audit_event('run','interrupted')
+    except Exception as exc:
+        status = 'error'
+        node.audit_event('run','error',details={'exception':repr(exc)})
+        raise
+    finally:
+        node._belt_run = False
+        time.sleep(0.05)
+        node.save_audit(status)
+        node.destroy_node()
+        rclpy.shutdown()
 
 
 if __name__ == '__main__':
