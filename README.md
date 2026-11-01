@@ -540,7 +540,7 @@ Each run creates a timestamped folder:
 - phase_events.csv: timestamped phase transitions, classification decisions, grasp/release confirmations and skip reasons.
 - motion_tracking.csv: commanded versus measured positions for all four revolute joints and both prismatic fingers during every programmed movement.
 - joint_state_telemetry.csv: measured joint-state samples from ROS 2.
-- conveyor_path_commands.csv: loop coordinate, commanded/actual target belt speed, each carrier's path coordinates and commanded X/Y offsets. These are commanded carrier targets, not measured carrier positions.
+- conveyor_path_commands.csv: loop coordinate, commanded belt-speed target and rate-limited slewed belt-speed state, each carrier's path coordinates and commanded X/Y offsets. These are commanded carrier targets, not measured carrier positions.
 
 Joint angles are in radians; finger positions and conveyor coordinates are in metres; belt speeds are in metres per second. Wall-clock and simulation-clock timestamps are both included.
 
