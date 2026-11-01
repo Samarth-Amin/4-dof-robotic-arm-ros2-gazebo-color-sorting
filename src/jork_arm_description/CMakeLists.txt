@@ -12,6 +12,7 @@ install(
   PROGRAMS
     scripts/pick_and_place_demo.py
     scripts/vision_sorting_cell.py
+    scripts/check_project_consistency.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
