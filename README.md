@@ -28,7 +28,10 @@ A simulation-based robotic manufacturing workcell combining a custom SolidWorks-
 
 * **Simulation Video:** 
 
-Uploading Video Project 5.mp4…
+
+https://github.com/user-attachments/assets/5375b9ef-bf01-4026-981f-5741450c76a7
+
+
 
 
 
