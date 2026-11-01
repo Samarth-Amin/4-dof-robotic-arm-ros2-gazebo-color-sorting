@@ -1,0 +1,168 @@
+{
+  "configuration": {
+    "L2": 0.225,
+    "P_loop": 2.8796,
+    "R_grasp": 0.1908,
+    "R_loop": 0.14,
+    "X_pad": 0.0795,
+    "Z_grasp_fallen": 0.08,
+    "Z_grasp_upright": 0.098,
+    "Z_pad": -0.012,
+    "Z_shoulder": 0.2581,
+    "belt_x": 0.2166,
+    "belt_y": -0.0,
+    "cam_x": 0.2166,
+    "cam_y": -0.0,
+    "cam_z": 0.72,
+    "fov_h": 0.7,
+    "j2_x": -0.0581,
+    "x0": 0.0258,
+    "y0": -0.0,
+    "y_front": 0.45,
+    "y_rear": -0.55
+  },
+  "conveyor_path_sample_count": 8826,
+  "joint_state_sample_count": 5063,
+  "limits": [
+    "DetachableJoint is an idealized grasp, not frictional force-closure validation.",
+    "Release confirmation does not independently verify bucket occupancy.",
+    "Camera metadata fallback and model-derived pickup coordinates remain in use.",
+    "Tracking errors are command-versus-joint-state differences, not measured motor torque."
+  ],
+  "max_absolute_tracking_error": {
+    "finger_left_joint": 0.023611323084646786,
+    "finger_right_joint": 0.024961397437727007,
+    "joint_1": 2.0619437461819716,
+    "joint_2": 0.5737499215234301,
+    "joint_3": 0.5826983824803117,
+    "joint_4": 0.16263906090326094
+  },
+  "motion_sample_count": 4780,
+  "part_results": [
+    {
+      "action": "SORT -> RED",
+      "color": "RED",
+      "id": 1,
+      "outcome": "RELEASE_CONFIRMED_AND_ARM_SETTLED",
+      "state": "Upright",
+      "time_s": 11.554797172546387
+    },
+    {
+      "action": "SORT -> RED",
+      "color": "RED",
+      "id": 2,
+      "outcome": "RELEASE_CONFIRMED_AND_ARM_SETTLED",
+      "state": "Tilted/Fallen",
+      "time_s": 11.350872993469238
+    },
+    {
+      "action": "SKIP (Random)",
+      "color": "YELLOW",
+      "id": 3,
+      "outcome": "CIRCULATED LOOP",
+      "state": "Upright",
+      "time_s": 0.0
+    },
+    {
+      "action": "SORT -> BLUE",
+      "color": "BLUE",
+      "id": 4,
+      "outcome": "RELEASE_CONFIRMED_AND_ARM_SETTLED",
+      "state": "Upright",
+      "time_s": 12.671738862991333
+    },
+    {
+      "action": "SKIP (Random)",
+      "color": "PURPLE",
+      "id": 5,
+      "outcome": "CIRCULATED LOOP",
+      "state": "Tilted/Fallen",
+      "time_s": 0.0
+    },
+    {
+      "action": "SORT -> BLUE",
+      "color": "BLUE",
+      "id": 6,
+      "outcome": "RELEASE_CONFIRMED_AND_ARM_SETTLED",
+      "state": "Upright",
+      "time_s": 11.973708391189575
+    },
+    {
+      "action": "SORT -> BLUE",
+      "color": "BLUE",
+      "id": 7,
+      "outcome": "RELEASE_CONFIRMED_AND_ARM_SETTLED",
+      "state": "Tilted/Fallen",
+      "time_s": 12.412176132202148
+    },
+    {
+      "action": "SORT -> BLUE",
+      "color": "BLUE",
+      "id": 8,
+      "outcome": "RELEASE_CONFIRMED_AND_ARM_SETTLED",
+      "state": "Tilted/Fallen",
+      "time_s": 11.096875667572021
+    },
+    {
+      "action": "SKIP (Random)",
+      "color": "ORANGE",
+      "id": 9,
+      "outcome": "CIRCULATED LOOP",
+      "state": "Tilted/Fallen",
+      "time_s": 0.0
+    },
+    {
+      "action": "SORT -> RED",
+      "color": "RED",
+      "id": 10,
+      "outcome": "RELEASE_CONFIRMED_AND_ARM_SETTLED",
+      "state": "Upright",
+      "time_s": 12.397464036941528
+    },
+    {
+      "action": "SKIP (Random)",
+      "color": "CYAN",
+      "id": 11,
+      "outcome": "CIRCULATED LOOP",
+      "state": "Tilted/Fallen",
+      "time_s": 0.0
+    },
+    {
+      "action": "SORT -> RED",
+      "color": "RED",
+      "id": 12,
+      "outcome": "RELEASE_CONFIRMED_AND_ARM_SETTLED",
+      "state": "Upright",
+      "time_s": 11.124933242797852
+    },
+    {
+      "action": "SORT -> RED",
+      "color": "RED",
+      "id": 13,
+      "outcome": "RELEASE_CONFIRMED_AND_ARM_SETTLED",
+      "state": "Upright",
+      "time_s": 11.157406330108643
+    },
+    {
+      "action": "SKIP (Random)",
+      "color": "GREEN",
+      "id": 14,
+      "outcome": "CIRCULATED LOOP",
+      "state": "Tilted/Fallen",
+      "time_s": 0.0
+    },
+    {
+      "action": "SORT -> BLUE",
+      "color": "BLUE",
+      "id": 15,
+      "outcome": "RELEASE_CONFIRMED_AND_ARM_SETTLED",
+      "state": "Upright",
+      "time_s": 13.192512273788452
+    }
+  ],
+  "phase_event_count": 600,
+  "run_id": "20261101T095100Z",
+  "sim_elapsed_s": 171.72799968719482,
+  "status": "completed",
+  "wall_elapsed_s": 173.10057592391968
+}

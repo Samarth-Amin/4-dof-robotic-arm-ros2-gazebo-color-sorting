@@ -8,3 +8,9 @@ __pycache__/
 .DS_Store
 .vscode/
 video.mp4
+
+# Local audit environment
+.venv-audit/
+
+# Windows metadata files
+*:Zone.Identifier
