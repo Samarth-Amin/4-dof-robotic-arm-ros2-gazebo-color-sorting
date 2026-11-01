@@ -446,3 +446,122 @@ The following items are deliberately separated from completed implementation:
 7. **Mechanical transmission documentation:** document the actual belt/gear arrangement from the CAD assembly and include gear ratios, materials and dimensions only where they are supported by the design.
 
 The current repository is a simulation-based design and integration project. Physical robot construction, real-world sorting accuracy and hardware performance are not claimed.
+
+
+---
+
+## 15. Reproducible Simulation Validation
+
+The repository includes a static cross-file checker and runtime telemetry recorder. Use both before publishing updated performance figures.
+
+### 15.1 Static consistency check
+
+From the repository root:
+
+~~~bash
+python3 src/jork_arm_description/scripts/check_project_consistency.py
+~~~
+
+The checker compares the current JSON configuration against the URDF/Xacro and SDF, including:
+
+- Four revolute arm joints and two prismatic gripper joints
+- Joint origin values used by the constrained-pose IK
+- Finger mounting origins
+- Camera pose, field of view and image configuration
+- Conveyor origin and stadium-loop perimeter
+- Fifteen carrier/workpiece identifiers and target/distractor colour counts
+- Detachable-joint plugin inventory
+- ROS command-topic templates and launch bridges
+- Package runtime dependencies and CMake installation
+
+[PASS] means the checked files agree on that item. [WARN] identifies a known engineering limitation that needs review, not necessarily a broken build. [FAIL] means a cross-file mismatch must be resolved before trusting the run.
+
+This is a static check. It does not launch Gazebo or prove that the robot moves correctly.
+
+### 15.2 Build and launch
+
+Build the package after pulling the validation branch:
+
+~~~bash
+source /opt/ros/jazzy/setup.bash
+colcon build --packages-select jork_arm_description
+source install/setup.bash
+~~~
+
+Terminal 1 — start the workcell:
+
+~~~bash
+ros2 launch jork_arm_description gazebo.launch.py
+~~~
+
+Terminal 2 — run the complete 15-workpiece scenario and save telemetry:
+
+~~~bash
+source /opt/ros/jazzy/setup.bash
+source install/setup.bash
+ros2 run jork_arm_description vision_sorting_cell.py --ros-args -p audit_dir:=$HOME/.ros/robot_sorting_audits
+~~~
+
+Do not set dry_run:=true for the complete sorting benchmark. The default is false.
+
+### 15.3 Motion sequence recorded
+
+| Phase label | Motion / operation | What is recorded |
+|---|---|---|
+| startup_to_ready | Move from initial pose to side-ready posture | Six commanded and measured joint positions |
+| approach_pre_descent | Track carrier and move above pickup | Joint tracking and conveyor path |
+| approach_final_descent | Descend to configured grasp height | Joint tracking and grasp height |
+| hold_during_attach | Maintain pickup pose while requesting Gazebo attachment | Attachment wait duration and joint tracking |
+| gripper_close_after_attach | Close both prismatic fingers after attachment confirmation | Finger commands and measured positions |
+| lift_clear_of_cradle | Raise the workpiece from the cradle | Joint tracking and lift duration |
+| transport_to_bucket_hover | Move to the selected colour bucket | Joint tracking and transport duration |
+| bucket_final_descent | Descend to the bucket drop pose | Joint tracking and arrival check |
+| open_jaws_at_drop_pose | Open the fingers | Finger commands and measured positions |
+| retract_from_bucket | Retract from the drop pose | Joint tracking |
+| return_to_ready | Return to the side-ready posture | Joint tracking and return duration |
+| end_of_run_park | Move to the final park pose | Joint tracking |
+
+The event log also records classification results, whether camera metadata fallback was used, attach/detach requests and confirmations, finger-position checks, bucket-pose arrival checks, skipped distractors and conveyor speed targets.
+
+### 15.4 Audit files
+
+Each run creates a timestamped folder:
+
+~~~text
+~/.ros/robot_sorting_audits/<UTC-run-id>/
+├── run_summary.json
+├── phase_events.csv
+├── motion_tracking.csv
+├── joint_state_telemetry.csv
+└── conveyor_path_commands.csv
+~~~
+
+- run_summary.json: run status, configuration snapshot, part outcomes, sample counts and maximum observed absolute tracking error.
+- phase_events.csv: timestamped phase transitions, classification decisions, grasp/release confirmations and skip reasons.
+- motion_tracking.csv: commanded versus measured positions for all four revolute joints and both prismatic fingers during every programmed movement.
+- joint_state_telemetry.csv: measured joint-state samples from ROS 2.
+- conveyor_path_commands.csv: loop coordinate, commanded/actual target belt speed, each carrier's path coordinates and commanded X/Y offsets. These are commanded carrier targets, not measured carrier positions.
+
+Joint angles are in radians; finger positions and conveyor coordinates are in metres; belt speeds are in metres per second. Wall-clock and simulation-clock timestamps are both included.
+
+The recorder saves its files on normal completion and on Ctrl+C. If the process exits forcibly or the computer loses power, the last run may be incomplete.
+
+### 15.5 Interpreting the benchmark correctly
+
+The target cycle timer starts immediately before the first pickup approach and ends after the robot returns to the ready posture. It includes descent, attachment wait, finger closure, lift, bucket transport, bucket descent, release wait and return motion. It does not include the time spent waiting for the workpiece to arrive at the pickup window.
+
+A Gazebo detachable-joint confirmation proves only that the simulated constraint was attached or detached. It does not prove frictional grasp force closure or independently verify that a released block settled inside the intended bucket. The run summary therefore distinguishes attachment/release sequence completion from verified bucket occupancy.
+
+The camera pipeline currently has a configured-colour fallback when no image detection is available. Pickup XY is derived from the modelled carrier path, and the calculated image centroid and principal-axis angle are not yet used to command pickup XY or wrist roll. These limitations are included in the audit output so the run cannot be misreported as camera-only autonomous localisation.
+
+### 15.6 Evidence required before updating project claims
+
+For a defensible result, retain:
+
+1. The full audit folder from each run.
+2. A screen recording showing the complete conveyor and manipulator sequence.
+3. The static checker output.
+4. At least three complete runs with the same configuration before reporting an average cycle time or repeatability statistic.
+5. Separate counts for camera detections, metadata fallbacks, attach confirmations, release confirmations, arm-arrival checks and independently verified bucket placements.
+
+Do not report a 100% sorting success rate from controller-flow counters alone. Bucket occupancy must be checked independently before calling a block successfully sorted.
