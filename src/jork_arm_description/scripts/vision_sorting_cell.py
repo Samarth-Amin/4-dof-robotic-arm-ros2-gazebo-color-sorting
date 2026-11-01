@@ -306,7 +306,7 @@ class ClosedLoopStadiumConveyorCell(Node):
             loop_s = self.loop_s
 
         conveyor_row = {'wall_time_s':time.time()-self.audit_wall_start, 'sim_time_s':now,
-                        'loop_s_m':float(loop_s), 'belt_speed_actual_m_s':float(self._belt_v),
+                        'loop_s_m':float(loop_s), 'belt_speed_slewed_m_s':float(self._belt_v),
                         'belt_speed_target_m_s':float(self._belt_v_target)}
         for p in self.parts:
             pid = p['puck_id']
