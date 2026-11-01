@@ -56,7 +56,8 @@ $$a_c = \frac{v_{\mathrm{cruise}}^2}{R_{\mathrm{loop}}} = \frac{(0.042\text{ m/s
 
 With bottom-weighted workpiece inertia ($z_{\mathrm{COM}} = -15\text{ mm}$ relative to geometric center, placing the effective center of mass at $h_{\mathrm{COM}} = 13\text{ mm}$ above the cradle pad) and a half-width of $b = 11\text{ mm}$, the quasi-static tipping acceleration even without the $9\text{ mm}$ retaining rim is $a_{\mathrm{tip}} = g(b / h_{\mathrm{COM}}) \approx 8.3\text{ m/s}^2$, while the $9\text{ mm}$ cradle pocket provides positive mechanical retention around both $180^\circ$ turns.
 
-![Workspace Reachability & Workcell Layout](media/workspace_envelope.png)
+<img width="3900" height="1650" alt="workspace_envelope" src="https://github.com/user-attachments/assets/dc2a1aff-e3dd-43eb-951e-0ef0f3834424" />
+
 
 ---
 
@@ -113,7 +114,8 @@ Joint references are generated at $60\text{ Hz}$. Each revolute and prismatic ax
 | `joint_4` (Wrist Roll) | $45$ | $0$ | $6$ | $1.5\text{ N}\cdot\text{m}\cdot\text{s/rad}$ | $0.20\text{ N}\cdot\text{m}$ |
 | `finger_left/right_joint` | $240$ | $0$ | $12$ | $4.0\text{ N}\cdot\text{s/m}$ | $0.20\text{ N}$ |
 
-![Quintic Trajectory Profiles](media/quintic_trajectories.png)
+<img width="3750" height="2250" alt="quintic_trajectories" src="https://github.com/user-attachments/assets/f7e8b20f-e465-4b44-a775-33d792b53b22" />
+
 
 ---
 
@@ -139,7 +141,8 @@ $$\tau_{\mathrm{design}} = FS\left(g\sum_i m_i r_{ci} + J_{\mathrm{eff}}\ddot{q}
 - **Factored design torque ($FS = 2.0$):** $\tau_{\mathrm{design}} = 2.0 \times 5.20 = 10.40\text{ N}\cdot\text{m}$
 - **Motor & reduction check:** With a $4.5:1$ HTD-3M timing-belt and planetary reduction stage ($\eta = 0.90$), the required motor shaft torque is $\tau_{\mathrm{motor}} = \frac{10.40}{4.5 \times 0.90} = 2.57\text{ N}\cdot\text{m}$, suitable for a NEMA 23 closed-loop stepper motor.
 
-![Mechanical Joint Torque Sizing](media/torque_analysis.png)
+<img width="3900" height="1560" alt="torque_analysis" src="https://github.com/user-attachments/assets/452b0fa7-5f00-4134-a57b-32d0c8eb3c31" />
+
 
 ---
 
@@ -155,7 +158,8 @@ Each carrier puck $k \in \{1, \dots, 15\}$ follows the piecewise-parametric path
 
 During a pickup, the controller synchronizes the conveyor speed from $v_{\mathrm{cruise}} = 42.0\text{ mm/s}$ to a precision pinch velocity of $v_{\mathrm{grasp}} = 6.0\text{ mm/s}$ while updating the inverse-kinematics target $(X_{\mathrm{puck}}(t), Y_{\mathrm{puck}}(t))$ at $60\text{ Hz}$ throughout the descent and $0.50\text{ s}$ finger-closing window (`move_puck_tracked`), minimizing horizontal relative displacement between the Fin Ray pads and the moving workpiece.
 
-![Conveyor Tracking & Centripetal Stability](media/conveyor_tracking.png)
+<img width="3900" height="1560" alt="conveyor_tracking" src="https://github.com/user-attachments/assets/597694a7-7e97-4ae1-a8f0-dcbe17435a20" />
+
 
 ---
 
@@ -171,7 +175,8 @@ For a $m_p = 0.030\text{ kg}$ workpiece extracted at vertical acceleration $a_z 
 
 $$F_n \ge \frac{FS \cdot m_p(g + a_z)}{2\mu}$$
 
-![Fin Ray Force Closure & Encoder Verification](media/gripper_verification.png)
+<img width="3900" height="1560" alt="gripper_verification" src="https://github.com/user-attachments/assets/60a7b7ac-20a8-471c-91fc-f8533af4e834" />
+
 
 ---
 
@@ -217,7 +222,8 @@ The benchmark scenario evaluates a complete single-pass cycle of all $15$ workpi
 
 **Benchmark scope:** These values represent single-run simulation results obtained in the Gazebo Harmonic sorting workcell under nominal initial conditions (workpieces spaced at $0.192\text{ m}$ intervals around the $2.880\text{ m}$ stadium loop, $v_{\mathrm{cruise}} = 42.0\text{ mm/s}$, $v_{\mathrm{grasp}} = 6.0\text{ mm/s}$, and a successful sort defined as physical placement inside the designated $140\times 140\times 80\text{ mm}$ open-top bucket). They are simulation results and not physical-hardware test measurements.
 
-![15-Block Sorting Benchmark Summary](media/benchmark_summary.png)
+<img width="3900" height="1560" alt="benchmark_summary" src="https://github.com/user-attachments/assets/a33203c2-ec66-45b2-8da3-a4ab0ad435d9" />
+
 
 ---
 
@@ -348,6 +354,7 @@ Potential next steps include:
 ## 15. Author
 
 **Samarth Amin**  
-*B.Tech Mechanical Engineering $\cdot$ Minor in Software Engineering*
+*B.Tech Mechanical Engineering ,
+Minor in Software Engineering ,
 
 This project demonstrates the integration of mechanical CAD design, robot kinematic and dynamic modelling, motion control, machine vision, and physics simulation into an autonomous manufacturing sorting workcell.
